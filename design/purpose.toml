@@ -1,6 +1,44 @@
-# project purpose and definition documentation
-
-[REQ-purpose]
+[REQ-0]
 text = '''
-The purpose of this project is...
+The purpose of UBR is design an ultra lightweight remote procedural
+call framework that can be run on microcontrollers and contains
+"bridge" nodes for bridging between protocols.
+
+Definitions:
+- node: a device with an id (called a `node_id`) that can speak UBR
+  on one or more protocols.
+- bridge: a node that other nodes can register themselves on. Some
+  bridges speak multiple protocols and act as a "bridge" between 
+  them.
+'''
+
+[REQ-0-micro]
+text = '''
+shall be able to be run on microcontrollers with no overhead
+'''
+
+[REQ-0-rpc]
+text = '''
+Each node shall be able to transmit the function id's (`fn_id`s)
+that it supports, the type of the function, along with the input/output types of
+that function.
+
+The following function types shall be supported:
+- void: only an ack as return value
+- single: returns a single piece of data
+- stream: returns a stream of data, possibly with a certain period
+    - sized: a sized stream returns only a specific number of items
+      and then stops.
+    - infinite: an infinite stream sends data until it is halted.
+'''
+
+[REQ-0-robust]
+text = '''
+messages must be able to handle dropped packets, regardless of protocol.
+'''
+
+[REQ-0-bridge]
+text = '''
+bridge nodes must be able to be ultra lightweight, requiring slightly
+more memory than regular nodes, but can lack an allocator
 '''
