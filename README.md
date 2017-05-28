@@ -3,76 +3,75 @@
 > **This library is in the design phase.**
 
 The universal bridged call protocol is a protocol designed to allow
-a system of different devices, all using different protocols, to
-communicate with each other and issue commands through (optionally) guaranteed
-unique remote procedural calls.
+a system of different devices (including microcontrollers), all using different
+protocols, to communicate with each other and issue commands through
+(optionally) guaranteed unique remote procedural calls.
 
 UBR has the following requirements:
-- lightweight: can be run on microcontrollers with as little as
-  4k memory
+- lightweight: both nodes and bridges can be run on microcontrollers with as
+  little as 4k memory and no memory allocation.
 - simple: The entire protocol is governed by a small set of easy to
   implement rules and there are only two kinds of devices: nodes and bridges.
-  Bridges are just nodes which also store a register of existing nodes. They
-  require very little memory overhead and can be run on without heap
-  allocations as they simply pass data along. Cached data is only kept on the
-  initiator and the executor node.
+  Bridges are just nodes which also store a register of existing nodes and pass
+  data along to its destination.
 - protocol agnostic: as long as the protocol is a masterless protocol,
-  UBR can run on it.
+  UBR can run on it. The initial protocols will be: IP (internet), UART, CAN and
+  ZigBee
 - bridged: UBR enables seamless communication between different protocols. A
   node on ethernet can communicate with a node on CAN through an arbitrary
   number of bridges.
 - flexibly robust: supports any range on the spectrum of robustness vs
-  guaranteed performance
+  guaranteed performance. When configured, data can always be re-requested
+  and the user is guaranteed to never accidentally get duplicate data or call
+  the same RPC twice.
     - functions can be configured to never drop their return values (until the
       initiator clears them) in order guarantee crticial data
     - functions can drop their return values immediately for idempotent
       operations and guaranteed performance.
     - functions can have a user-defined events of when they drop values
       (i.e. timeout, buffer fullness, etc)
-
-The protocol is explicitly designed to be run on microcontrollers
-with less than 4k of RAM and without dynamic memory allocation.
-The initial target protocols will be:
- - **ip** (tcp): this will be initial demo support
- - ZigBee
- - UART
- - CAN
+    - functions can store an index and only run when the index matches the
+      `cx_id` given in the RPC, guaranteing that functions cannot be run
+      twice accidentally.
 
 The library will be split up into several crates:
-- ubq-core: contains the core data types and constants.
-- ubq-logic: contains logic handlers to implement the protocol.
-- ubq-std: contains higher logic implemented using the std library (including
+- ubq-constants: provides constants in a way that can be exported to other
+  languages (C, python, java, etc).
+- ubq-logic-rs: contains core rust data types and logic handlers to implement
+  the protocol.
+- ubq-std-rs: contains higher logic implemented using the std library (including
   heap memory allocation and threading).
-- ubq-uc: contains higher logic implemented for microcontrollers (no heap
+- ubq-uc-rs: contains higher logic implemented for microcontrollers (no heap
   memory allocation or threading)
 
 # Node Operation
-A node works by declaring functions associated with specific `fn_id`s
-which have a particular type. Ideally, the library will be able to automatically
-infer the types and correctly return error codes when they are violated.
+A node is simply a device that has a `node_id`. It participates by declaring
+functions. Functions are just pieces of code that have a `fn_id`, an
+input/return data layout and specify whether they are indexed, dropable and/or
+stream. More into what all that means in a bit.
 
 The declared functions can be called by any other node on the network by
 specifying the `exec_uid` of the executor and their own node_uid as
 `init_uid`. The initiator node also specifies the `cx_id` and `input_data`
-for the function.
+for the function, as well as `dropable` and `stream`.
 
 An initiator makes a call to a executor using tokens `FN_CALL`, `KILL` or `FN_GET`:
 - `FN_CALL` requires `ACK` to be sent immediately if `dropable=true`.
-- `FN_CALL` and `FN_GET` return one of {`ERR`, `VALUE`}
-    - `FN_CALL` attempts to execute an RPC on the device
-    - for `FN_CALL,stream=true`, `count` determines how much data
-      to request. See section "Stream Functions".
-    - for `FN_GET,stream=true`, `count` determines *which* count to
-      return. The returned `VALUE` will also have `stream=true`.
-    - if `stream=true`, `ERR` can be returned with:
-        - `stream=false`: declares that the function ITSELF failed and there
-          will be no more values.
-        - `stream=true`: declares that there was an error retrieving
-          specific data at `count`.
+- `FN_CALL` attempts to execute an RPC on the device
+    - if `stream=true`, `count` determines how much data to request. See section
+      "Stream Functions".
+- `FN_GET` asks for data that already exists on the node (i.e. if the
+  return value was dropped). It uses the `cx_id` to specify exactly *which*
+  RPC instance it wants data for.
+    - if `stream=true`, `count` determines *which* count to get The returned
+      `VALUE` will also have `stream=true`.
+- For both `FN_CALL` and `FN_GET` if `stream=true` then an `ERR` can be returned
+  with:
+    - `stream=false`: declares that the function ITSELF failed and there will be
+      no more values.
+    - `stream=true`: declares that there was an error retrieving specific data
+      at `count`.
 - `KILL` returns `KILLED` when executed.
-    - if `dropable=true` then `CLEAR` does not have to be sent: the function
-      data will also be cleared. Note that this makes `KILL+dropable=true` the
-      equivalent of `CLEAR` for completed functions.
 
 When an initiator gets a response token from the executor:
 - nothing is sent when an `ACK` is received. `ACK` is *only* used to help
@@ -83,12 +82,31 @@ When an initiator gets a response token from the executor:
     - if `stream=true` this signals data at `count` being received. The function
       will continue (until done and all stream data is cleared) but that index
       of the stream will be cleared.
-- `CLEAR` is sent when a `KILLED` is received and `dropable=false`
-    - `stream` must ALWAYS equal 0 in this case.
+- `CLEAR` is sent when a `KILLED` is received and `dropable=false` AND all data
+  has been received.
+    - if `dropable=true` when the `KILLED` was sent, then `CLEAR` does not have
+      to be sent: the function data will also be cleared (Note that this makes
+      `KILL+dropable=true` the equivalent of `CLEAR` for completed functions).
+- A `CLEAR` with `stream=false` will always result in all data being cleared,
+  even if the function is a stream type.
 
 # Bridge Operation
 
-TODO... bridge operation
+A bridge is simply a pass through node: messages sent to it who's
+`init_uid`/`exec_uid` do not equal the bridge's own `node_uid` are simply
+passed through to the correct party.
+
+> The direction the message goes is determined by the type. Request types are
+> always going to the `exec_uid` and Response types are always going to the
+> `init_uid`.
+
+## Bridge Discovery Phase
+The bridge knows where data goes because it holds a table of `node_id`s mapped
+to the addresses of the next bridge. It learns of the `node_id`s/addresses
+through it's Discovery phase.
+
+The discovery phase is a process as follows:
+
 
 # Function Description
 Functions are the way in which the user's software communicates with other
@@ -168,8 +186,8 @@ DS FN_NAME {IV_NAME: ARG_TYPE, ...} -> {RV_NAME: RV_TYPE, ...} ![ERRORS]
 ```
 where :
 - `D` is the drop-able setting
-    - `G` for "`dropable` can be anything"
-    - `D` for "`dropable` must be 1"
+    - `D` for "`dropable` only"
+    - `G` for "`dropable` can be anything" (i.e. can be guaranteed)
 - `S` is the stream setting
     - `V` for "`stream` must be 0"
     - `s` for "`stream` can be anything with any count specified"
@@ -191,26 +209,49 @@ where :
 These functions are how communication happens from node -> bridge and
 bridge -> node. These are used in node registration and discovery.
 
-> All of these can return bridge related errors documented in "Bridge Errors".
+> Many of these can return bridge related errors documented in "Bridge Errors".
 > These errors are represented by `BERR` below.
 
-- `FN_REGISTER_NODE DV {} -> {} ![BERR]`: register this node with the bridge
-- `FN_REGISTER_BRIDGE DV {} -> {}`: register this bridge with the node. Used
-  during bridge's discovery phase.
-- `FN_UNREGISTER_BRIDGE DV {} -> {}`: unregister this bridge with the node. Used
-  if a bridge is stopped.
+### Called by anything to anything:
+- `FN_GET_BRIDGES DV {} {bridge_uids: [u16; 8], len: u8} ![]`: return up
+  to the first eight bridges currently registered on the node (in ordered
+  priority). Most nodes will not have more than 8 bridges.
+- `FN_STREAM_BRIDGES US {} {bridge_uid: u16} ... TODO
+- TODO: nodes need a way to get bridge ip addresses... maybe...
+
+```
+FN_STREAM_REGISTERED_NODES GI {}
+-> {node_id: u16, addr: [u8; 32] addr_type: u16}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `node_id`s whenever they
+become available, including ones it already has and ones it will get in the
+future. This is the primary command that allows bridges to stay up to date
+on what other bridges have access to.
+
+### Called by the node to a bridge:
+- `FN_REGISTER_SELF DV {} -> {} ![BERR]`: register self with the bridge.
+  Can be used if a node comes on the network after the bridge discovery phase.
 - `FN_NODE_EXISTS DV {node_id: u16} -> {exists: bool} ![BERR]`: return true if the
   bridge has the `node_id` stored (and therefore knows how to reach it).
-- `FN_GET_NODES GU {} -> {node_id: [u16; 32], len: u8} ![BERR]`: return a stream
-  of all nodes currently registered on this bridge in chunks of up to 32
-  node_ids per value
+
+### Called by the bridge to a node:
+- `FN_REGISTER_BRIDGE DV {} -> {}`: register this bridge with the node. Used
+  during bridge's discovery phase.
+- `FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}`: tell a node to unregister a
+  bridge. Used if a bridge has stopped/failed.
+
+### Called by a bridge to another bridge:
+Nothing?
+
+### Recovery Functions (called by either node or bridge):
 - `FN_FORCE_DISCOVERY DV {} -> {} ![BERR]`: force the bridge to re-enter the discovery
   phase (will momentarily bring it down).
+- `FN_START_BRIDGE DV {} -> {} ![BERR]`: tell a bridge node that has been
+  stopped to be a bridge again. NOP if node is already a bridge.
 - `FN_STOP_BRIDGE DV {} -> {} ![BERR]`: force a bridge to stop acting as a
   bridge. Can be used if the bridge is misbehaving or there are too many
   bridges. Bridge will un-register with nodes before shutting down.
-- `FN_START_BRIDGE DV {} -> {} ![BERR]`: tell a bridge node that has been
-  stopped to be a bridge again. NOP if node is already a bridge.
 
 ## Functions about Functions
 ```
