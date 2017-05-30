@@ -1,44 +1,38 @@
 [REQ-0]
 text = '''
-The purpose of UBR is design an ultra lightweight remote procedural
-call framework that can be run on microcontrollers and contains
+The purpose of the Bridge Protocol is to have an ultra lightweight remote
+procedural call framework that can be run on microcontrollers and contains
 "bridge" nodes for bridging between protocols.
 
-Definitions:
-- node: a device with an id (called a `node_id`) that can speak UBR
-  on one or more protocols.
-- bridge: a node that other nodes can register themselves on. Some
-  bridges speak multiple protocols and act as a "bridge" between 
-  them.
+See the README.md for more information.
 '''
 
-[REQ-0-micro]
+[REQ-0-definitions]
 text = '''
-shall be able to be run on microcontrollers with no overhead
+- `node`: a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
+  that can communicate on one or more networks.
+- `bridge`: a node that other nodes can register themselves on that can talk on
+  at least one network and knows the `network_uid` for all networks.
+  Can act as a "bridge" between networks.
+- `cluster_uid`: cluster unique id which represents a collection of nodes and
+  bridges with the same `cluster_uid`. Defined by the application developer at
+  compile time.
+- `node_uid`: node unique id which is used for locating nodes to call functions
+  on and return data. Defined by application developer at compile time.
+- `network_uid`: the unique network id that all  networks (i.e. tcp/ip, CAN,
+  ZigBee, UART) have assigned to them at compile time. Only the bridges need to
+  know which network is which.
+- `fn_id`: the id of a function associated with a particular node (is unique on
+  that node). Does not HAVE to be unique across nodes, but it is recommended for
+  application developers to make it unique.
+- `cx_id`: the context id of a RPC. This is used to ensure that data does not
+  get returned twice and for indexed functions to ensure that functions don't
+  get called twice.
+- `input_value`: the data passed along with the `fn_id` with `CALL_FN`. The
+  "input" value to the function.
 '''
 
-[REQ-0-rpc]
-text = '''
-Each node shall be able to transmit the function id's (`fn_id`s)
-that it supports, the type of the function, along with the input/output types of
-that function.
+[SPC-0-done]
+partof = "REQ-0-definitions"
+done = "by definition"
 
-The following function types shall be supported:
-- void: only an ack as return value
-- single: returns a single piece of data
-- stream: returns a stream of data, possibly with a certain period
-    - sized: a sized stream returns only a specific number of items
-      and then stops.
-    - infinite: an infinite stream sends data until it is halted.
-'''
-
-[REQ-0-robust]
-text = '''
-messages must be able to handle dropped packets, regardless of protocol.
-'''
-
-[REQ-0-bridge]
-text = '''
-bridge nodes must be able to be ultra lightweight, requiring slightly
-more memory than regular nodes, but can lack an allocator
-'''
