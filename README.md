@@ -44,50 +44,63 @@ The library will be split up into several crates:
   memory allocation or threading)
 
 # Node Operation
-A node is simply a device that has a `node_id`. It participates by declaring
-functions. Functions are just pieces of code that have a `fn_id`, an
-input/return data layout and specify whether they are indexed, dropable and/or
-stream. More into what all that means in a bit.
+A cluster is simply a collection of nodes and bridges where each node has a
+unique `node_uid` as well as the `cluster_uid`.
+
+A node is simply a device that has a `node_uid` and can communicate on some
+protocol. It participates by declaring functions. Functions are just pieces of
+code that have a `fn_id`, an input/return data layout and specify whether they
+are indexed, drop-able and/or stream. More into what all that means in a bit.
 
 The declared functions can be called by any other node on the network by
 specifying the `exec_uid` of the executor and their own node_uid as
 `init_uid`. The initiator node also specifies the `cx_id` and `input_data`
 for the function, as well as `dropable` and `stream`.
 
-An initiator makes a call to a executor using tokens `FN_CALL`, `KILL` or `FN_GET`:
-- `FN_CALL` requires `ACK` to be sent immediately if `dropable=true`.
-- `FN_CALL` attempts to execute an RPC on the device
+When a node first comes online:
+- the node broadcasts `FN_BROADCAST_NODE` (it continues to do this over an application
+  specific period)
+- bridges reply with `FN_REGISTER_BRIDGE`. The node will store (typically)
+  between 2-5 of these bridges.
+- other nodes on the cluster can now use the node as an executor of functions
+  using `FN_CALL`.
+
+Nodes allow other nodes to run functions on them. An initiator makes a call to
+an executor using tokens `FN_CALL`, `KILL` or `FN_GET`:
+- `FN_CALL` attempts to execute an RPC on the node
     - if `stream=true`, `count` determines how much data to request. See section
       "Stream Functions".
+    - the executor must return `ACK` immediately.
 - `FN_GET` asks for data that already exists on the node (i.e. if the
   return value was dropped). It uses the `cx_id` to specify exactly *which*
   RPC instance it wants data for.
-    - if `stream=true`, `count` determines *which* count to get The returned
-      `VALUE` will also have `stream=true`.
+    - if `stream=true`, `count` determines *which* count to get. The returned
+      `VALUE` will also have `stream=true`, with `count` set to `request.count`.
 - For both `FN_CALL` and `FN_GET` if `stream=true` then an `ERR` can be returned
   with:
     - `stream=false`: declares that the function ITSELF failed and there will be
       no more values.
     - `stream=true`: declares that there was an error retrieving specific data
       at `count`.
-- `KILL` returns `KILLED` when executed.
+- `KILL` returns `KILLED` when executed. `stream` must be false for both.
 
 When an initiator gets a response token from the executor:
 - nothing is sent when an `ACK` is received. `ACK` is *only* used to help
-  understand network latency.
-- `CLEAR` is sent when a `VALUE` or `ERR` is received and `dropable=false`
-    - if `stream=false` this signals the function as being and all data is
-      cleared.
+  nodes understand network latency and know whether they need to query the
+  status of a function.
+- `CLEAR` should be sent when a `VALUE` or `ERR` is received and `dropable=false`
+    - if the function is still running it returns `ERR_FN_RUNNING`
+    - if `stream=false` this signals the function as being done and ALL data is
+      cleared (even for streaming functions).
     - if `stream=true` this signals data at `count` being received. The function
-      will continue (until done and all stream data is cleared) but that index
+      will continue (until done and all stream data is cleared) but that `count`
       of the stream will be cleared.
-- `CLEAR` is sent when a `KILLED` is received and `dropable=false` AND all data
-  has been received.
-    - if `dropable=true` when the `KILLED` was sent, then `CLEAR` does not have
-      to be sent: the function data will also be cleared (Note that this makes
-      `KILL+dropable=true` the equivalent of `CLEAR` for completed functions).
 - A `CLEAR` with `stream=false` will always result in all data being cleared,
   even if the function is a stream type.
+- `KILL` has the ability to force-clear data.
+    - if `KILL,dropable=true` then the function will be killed AND data will be
+      cleared.
+    - If the function was already killed, `KILL` will return `ERR_KILL_STOPPED`.
 
 # Bridge Operation
 
@@ -99,20 +112,16 @@ node/bridge in the chain.
 > always going to the `exec_uid` and Response types are always going to the
 > `init_uid`.
 
-## Bridge Discovery Phase
-The bridge knows where data goes because it holds a table of `node_id`s mapped
-to the addresses of the next bridge. It learns of the `node_id`s/addresses
-through the Discovery phase.
+The bridge knows where data goes because it holds a table of `node_uid`s mapped
+to the protocol-specific addresses of the next bridge. It learns of the
+`node_uid`s/addresses through the Discovery phase.
 
 The discovery phase goes as follows:
-- the bridge sends out a protocol-specific broadcast message notifying nodes of
-  its location.
-    - note: it is not important whether this is dropped, as nodes can also
-      send out a broadcast asking bridges.
-- Any nodes/bridges that get this must send `FN_REGISTER_SELF` to the bridge
-  and make sure it completes.
-- Whenever there is a bridge registered `FN_STREAM_REGISTERED_NODES` also
-  gets sent as well, which guarantees that the two bridges stay in sync.
+- the bridge sends out `FN_BROADCAST_BRIDGE`
+- other nodes and bridges respond with `FN_REGISTER_SELF`
+- whenever another bridge calls `FN_REGISTER_SELF`, `FN_STREAM_REGISTERED_NODES`
+  is also sent to that bridge. This guarantees that the two bridges stay in
+  sync.
 
 # Function Description
 Functions are the way in which the user's software communicates with other
@@ -184,7 +193,6 @@ command).
 > function calls to an external database. This would allow for a device to
 > determine who executed what at which `cx_id`.
 
-
 # Builtin Functions
 Functions are defined in the form
 ```
@@ -206,10 +214,14 @@ where :
 - `RV` is "return value"
 - `ERRORS` what function specific errors can be returned (empty if none)
 
+Note: a return type of `ack` means that the function ONLY returns `ACK` (no
+value).
+
 ## Network Functions
-- `FN_PING DV {} -> {} ![]` the node is expected to only return an empty value
-- `FN_STREAM_HEARTBEAT DS {period_ms: int} {} ![]` return an empty value every
-  `period_ms`
+- `FN_PING DV {} -> ack ![]` the node is expected to only return an empty value
+- `FN_STREAM_CLOCK DS {period_ms: int} {clock_us: u64} ![]` return the current
+  microsecond value on the device's clock every `period_ms`. This can be used
+  as a node's heartbeat. This ALWAYS uses `cx_id=1` to avoid duplicate streams.
 
 ## Bridge Node Functions
 These functions are how communication happens from node -> bridge and
@@ -218,33 +230,49 @@ bridge -> node. These are used in node registration and discovery.
 > Many of these can return bridge related errors documented in "Bridge Node Errors".
 > These errors are represented by `BERR` below.
 
+### Broadcast Functions
+There are only two functions which have to be implemented in a network specific
+manner. These are used for nodes and bridges to make sure other nodes know they
+exist.
+
+- `FN_BROADCAST_NODE DV {cluster_uid: u32} {} ![]`: broadcast that this node
+  exists on a certain cluster. Bridges on that cluster will respond with
+  `FN_REGISTER_BRIDGE`
+- `FN_BROADCAST_BRIDGE DV {cluster_uid: u32} {} ![]`: broadcast that this bridge
+  exists on a certain cluster. Nodes and bridges on that cluster will respond
+  with `FN_REGISTER_NODE`
+
 ### Called by anything to anything:
 - `FN_GET_BRIDGES DV {} {bridge_uids: [u16; 8], len: u8} ![]`: return up
   to the first eight bridges currently registered on the node (in ordered
   priority). Most nodes will not have more than 8 bridges.
-- `FN_STREAM_BRIDGES US {} {bridge_uid: u16} ... TODO
-- TODO: nodes need a way to get bridge ip addresses... maybe...
+- `FN_STREAM_BRIDGES GS {} {bridge_uid: u16} ![]`: return a stream
+  of up to `count` bridges on the node. If `count` is 0 or `INFINITE` then
+  stream all known bridges.
 
 ```
 FN_STREAM_REGISTERED_NODES GI {}
--> {node_id: u16, addr_type: u16, addr: [u8; 32]}
+-> {node_uid: u16, addr_type: u16, addr: [u8; 32]}
 ![BERR]`
 ```
-Command for a bridge to stream all it's registered `node_id`s whenever they
+Command for a bridge to stream all it's registered `node_uid`s whenever they
 become available, including ones it already has and ones it will get in the
 future. This is the primary command that allows bridges to stay up to date
 on what other bridges have access to.
+
+This ALWAYS uses `cx_id=1` to make sure that there are not multiple running
+streams (but if the bridge went offline the stream may need to be restarted).
 
 ### Called by anything to a bridge:
 - `FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]`: register self with the
   bridge. Used during all bridge's discovery stage. `is_bridge` specifies
   whether the node is also a bridge.
-- `FN_NODE_EXISTS DV {node_id: u16} -> {exists: bool} ![BERR]`: return true if the
-  bridge has the `node_id` stored (and therefore knows how to reach it).
+- `FN_NODE_EXISTS DV {node_uid: u16} -> {exists: bool} ![BERR]`: return true if the
+  bridge has the `node_uid` stored (and therefore knows how to reach it).
 
 ### Called by a bridge to a node
 - `FN_REGISTER_BRIDGE GV {} -> {}`: register this bridge with the node. Used
-  by the bridge if a node broadcasts for bridges.
+  by a bridge if the node sends `FN_BROADCAST_NODE`.
 
 ### Node Recovery Functions
 - `FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}`: tell a node to unregister a
@@ -288,6 +316,7 @@ FN_GET_NODE_INFO DV {} -> {
     bridge: bool,           # true if node is a bridge
     num_networks: u16,
     max_buffer_size: u32,   # max buffer size in bytes
+    cluster_uid: u32,       # the cluster this node is a part of
 } ![]
 ```
 Return info related to this library about the node.
@@ -442,6 +471,7 @@ Finish:
 - `ERR_INVALID_CX`: indexed function called with invalid context (data=current
   `cx_id`)
 
+- `ERR_FN_RUNNING`: a `CLEAR` was sent while the function was still running.
 - `ERR_FN_MUST_DROP`: `dropable=0` for a function that must drop.
 - `ERR_FN_CANT_STREAM`: `stream=1` on a function that does not support streaming.
 - `ERR_FN_CANT_UNLIMITED_STREAM`: `stream=1,count=MAX_U32` on a function
