@@ -1,25 +1,24 @@
-# Universal Bridged RPC
+# Bridge: A Universal Bridged RPC Protocol
 
 > **This library is in the design phase.**
 
-The universal bridged call protocol is a protocol designed to allow
-a system of different devices (including microcontrollers), all using different
-protocols, to communicate with each other and issue commands through
-(optionally) guaranteed unique remote procedural calls.
+Bridge is a protocol designed to allow a system of different devices (including
+microcontrollers), all using different protocols, to communicate with each other
+and issue commands through (optionally) guaranteed unique remote procedural
+calls.
 
-UBR has the following requirements:
+Bridge has the following requirements:
 - lightweight: both nodes and bridges can be run on microcontrollers with as
   little as 4k memory and no memory allocation.
 - simple: The entire protocol is governed by a small set of easy to
   implement rules and there are only two kinds of devices: nodes and bridges.
   Bridges are just nodes which also store a register of existing nodes and pass
   data along to its destination.
-- protocol agnostic: as long as the protocol is a masterless protocol,
-  UBR can run on it. The initial protocols will be: IP (internet), UART, CAN and
-  ZigBee
-- bridged: UBR enables seamless communication between different protocols. A
-  node on ethernet can communicate with a node on CAN through an arbitrary
-  number of bridges.
+- protocol agnostic: can be run on any protocol that is masterless. The
+  initial protocols will be: IP (internet), UART, CAN and ZigBee
+- bridged: enables seamless communication between different protocols via
+  what are known as "node bridges". A node on ethernet can communicate with a
+  node on CAN (or any other protocol) through an arbitrary number of bridges.
 - flexibly robust: supports any range on the spectrum of robustness vs
   guaranteed performance. When configured, data can always be re-requested
   and the user is guaranteed to never accidentally get duplicate data or call
@@ -212,11 +211,11 @@ where :
 - `FN_STREAM_HEARTBEAT DS {period_ms: int} {} ![]` return an empty value every
   `period_ms`
 
-## Bridge Functions
+## Bridge Node Functions
 These functions are how communication happens from node -> bridge and
 bridge -> node. These are used in node registration and discovery.
 
-> Many of these can return bridge related errors documented in "Bridge Errors".
+> Many of these can return bridge related errors documented in "Bridge Node Errors".
 > These errors are represented by `BERR` below.
 
 ### Called by anything to anything:
@@ -251,14 +250,14 @@ on what other bridges have access to.
 - `FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}`: tell a node to unregister a
   bridge. Used if a bridge has stopped/failed.
 
-### Bridge Recovery Functions (called by either node or bridge):
+### Bridge Node Recovery Functions (called by either node or bridge):
 - `FN_FORCE_DISCOVERY DV {} -> {} ![BERR]`: force the bridge to re-enter the discovery
   phase (will momentarily bring it down).
 - `FN_START_BRIDGE DV {} -> {} ![BERR]`: tell a bridge node that has been
   stopped to be a bridge again. NOP if node is already a bridge.
 - `FN_STOP_BRIDGE DV {} -> {} ![BERR]`: force a bridge to stop acting as a
   bridge. Can be used if the bridge is misbehaving or there are too many
-  bridges. Bridge will un-register with nodes before shutting down.
+  bridges. The bridge will un-register with nodes before shutting down.
 
 ## Functions about Functions
 ```
@@ -323,7 +322,7 @@ FN_GET_RPC_INFO DV {} -> {
 Return information about running processes
 
 # The Message
-The message is the data returned from all transactions in UBR. It must be able
+The message is the data returned from all transactions. It must be able
 to define the following characteristics:
 - metadata about the message:
     - whether this is an error, RPC, a single-value, a stream-value, etc
@@ -432,7 +431,7 @@ Finish:
 - `ERR_METADATA_CORRUPT`: the message-metadata != ~inverse-message-metadata
 - `ERR_MESSAGE_CORRUPT`: `validation=1` and the message failed the CRC check
 
-#### Bridge Protocol Errors
+#### Bridge Node Protocol Errors
 - `ERR_UNREGISTERED_INIT`: returned if an `init_id` in a message is not
   registered on a bridge. This represents a critical error.
 - `ERR_UNREGISTERED_EXEC`: returned if an `exec_id` in a message is not
