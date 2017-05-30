@@ -2,23 +2,26 @@
 
 > **This library is in the design phase.**
 
-Bridge is a protocol designed to allow a system of different devices (including
-microcontrollers), all using different protocols, to communicate with each other
-and issue commands through (optionally) guaranteed unique remote procedural
-calls.
+Bridge is a protocol designed to allow a system of different devices, to
+communicate with each other and issue commands through (optionally) guaranteed
+unique remote procedural calls. It allows inter-network communication through the
+concept of "bridges". Both nodes and bridges can be highly resource constrained
+devices (such as microcontrollers). Intended supported networks include tcp/ip,
+UART, CAN and ZigBee.
 
-Bridge has the following requirements:
+The Bridge Protocol has the following requirements:
 - lightweight: both nodes and bridges can be run on microcontrollers with as
-  little as 4k memory and no memory allocation.
+  little as 4k RAM and no memory allocation.
 - simple: The entire protocol is governed by a small set of easy to
   implement rules and there are only two kinds of devices: nodes and bridges.
   Bridges are just nodes which also store a register of existing nodes and pass
   data along to its destination.
-- protocol agnostic: can be run on any protocol that is masterless. The
-  initial protocols will be: IP (internet), UART, CAN and ZigBee
-- bridged: enables seamless communication between different protocols via
-  what are known as "node bridges". A node on ethernet can communicate with a
-  node on CAN (or any other protocol) through an arbitrary number of bridges.
+- network agnostic: can be run on any network that is masterless and has the
+  ability to broadcast (tcp/ip, UART, CAN, etc).
+- bridged: enables seamless communication between different networks via
+  what are known as "bridge nodes". Through bridges, a node on ethernet can
+  communicate with a node on CAN (or any other protocol) through an arbitrary
+  number of bridges.
 - flexibly robust: supports any range on the spectrum of robustness vs
   guaranteed performance. When configured, data can always be re-requested
   and the user is guaranteed to never accidentally get duplicate data or call
@@ -27,21 +30,22 @@ Bridge has the following requirements:
       initiator clears them) in order guarantee crticial data
     - functions can drop their return values immediately for idempotent
       operations and guaranteed performance.
-    - functions can have a user-defined events of when they drop values
+    - functions can have user-defined events of when they drop values
       (i.e. timeout, buffer fullness, etc)
     - functions can store an index and only run when the index matches the
       `cx_id` given in the RPC, guaranteing that functions cannot be run
       twice accidentally.
 
 The library will be split up into several crates:
-- ubq-constants: provides constants in a way that can be exported to other
-  languages (C, python, java, etc).
-- ubq-logic-rs: contains core rust data types and logic handlers to implement
+- bridge-constants: provides generated constants for multiple languages
+- bridge-logic-rs: contains core rust data types and logic handlers to implement
   the protocol.
-- ubq-std-rs: contains higher logic implemented using the std library (including
+- bridge-std-rs: contains higher logic implemented using the std library (including
   heap memory allocation and threading).
-- ubq-uc-rs: contains higher logic implemented for microcontrollers (no heap
+- bridge-uc-rs: contains higher logic implemented for microcontrollers (no heap
   memory allocation or threading)
+
+The reference and primary implementation for all device types shall be in rust.
 
 # Node Operation
 A cluster is simply a collection of nodes and bridges where each node has a
@@ -49,15 +53,15 @@ unique `node_uid` as well as the `cluster_uid`.
 
 A node is simply a device that has a `node_uid` and can communicate on some
 protocol. It participates by declaring functions. Functions are just pieces of
-code that have a `fn_id`, an input/return data layout and specify whether they
-are indexed, drop-able and/or stream. More into what all that means in a bit.
+code that have a `fn_id`, input+return layout and settings for `[indexed,
+dropable, stream]`. More into what those mean in a bit.
 
 The declared functions can be called by any other node on the network by
 specifying the `exec_uid` of the executor and their own node_uid as
-`init_uid`. The initiator node also specifies the `cx_id` and `input_data`
-for the function, as well as `dropable` and `stream`.
+`init_uid`. The initiator node also specifies `[cx_id, input_data, dropable,
+stream]`.
 
-When a node first comes online:
+When a node connects to the network:
 - the node broadcasts `FN_BROADCAST_NODE` (it continues to do this over an application
   specific period)
 - bridges reply with `FN_REGISTER_BRIDGE`. The node will store (typically)
@@ -103,7 +107,6 @@ When an initiator gets a response token from the executor:
     - If the function was already killed, `KILL` will return `ERR_KILL_STOPPED`.
 
 # Bridge Operation
-
 A bridge is simply a pass through node: messages who's `init_uid`/`exec_uid` do
 not equal the bridge's own `node_uid` are simply passed through to the correct
 node/bridge in the chain.
