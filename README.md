@@ -92,9 +92,9 @@ When an initiator gets a response token from the executor:
 
 # Bridge Operation
 
-A bridge is simply a pass through node: messages sent to it who's
-`init_uid`/`exec_uid` do not equal the bridge's own `node_uid` are simply
-passed through to the correct party.
+A bridge is simply a pass through node: messages who's `init_uid`/`exec_uid` do
+not equal the bridge's own `node_uid` are simply passed through to the correct
+node/bridge in the chain.
 
 > The direction the message goes is determined by the type. Request types are
 > always going to the `exec_uid` and Response types are always going to the
@@ -103,10 +103,17 @@ passed through to the correct party.
 ## Bridge Discovery Phase
 The bridge knows where data goes because it holds a table of `node_id`s mapped
 to the addresses of the next bridge. It learns of the `node_id`s/addresses
-through it's Discovery phase.
+through the Discovery phase.
 
-The discovery phase is a process as follows:
-
+The discovery phase goes as follows:
+- the bridge sends out a protocol-specific broadcast message notifying nodes of
+  its location.
+    - note: it is not important whether this is dropped, as nodes can also
+      send out a broadcast asking bridges.
+- Any nodes/bridges that get this must send `FN_REGISTER_SELF` to the bridge
+  and make sure it completes.
+- Whenever there is a bridge registered `FN_STREAM_REGISTERED_NODES` also
+  gets sent as well, which guarantees that the two bridges stay in sync.
 
 # Function Description
 Functions are the way in which the user's software communicates with other
@@ -221,7 +228,7 @@ bridge -> node. These are used in node registration and discovery.
 
 ```
 FN_STREAM_REGISTERED_NODES GI {}
--> {node_id: u16, addr: [u8; 32] addr_type: u16}
+-> {node_id: u16, addr_type: u16, addr: [u8; 32]}
 ![BERR]`
 ```
 Command for a bridge to stream all it's registered `node_id`s whenever they
@@ -229,22 +236,22 @@ become available, including ones it already has and ones it will get in the
 future. This is the primary command that allows bridges to stay up to date
 on what other bridges have access to.
 
-### Called by the node to a bridge:
-- `FN_REGISTER_SELF DV {} -> {} ![BERR]`: register self with the bridge.
-  Can be used if a node comes on the network after the bridge discovery phase.
+### Called by anything to a bridge:
+- `FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]`: register self with the
+  bridge. Used during all bridge's discovery stage. `is_bridge` specifies
+  whether the node is also a bridge.
 - `FN_NODE_EXISTS DV {node_id: u16} -> {exists: bool} ![BERR]`: return true if the
   bridge has the `node_id` stored (and therefore knows how to reach it).
 
-### Called by the bridge to a node:
-- `FN_REGISTER_BRIDGE DV {} -> {}`: register this bridge with the node. Used
-  during bridge's discovery phase.
+### Called by a bridge to a node
+- `FN_REGISTER_BRIDGE GV {} -> {}`: register this bridge with the node. Used
+  by the bridge if a node broadcasts for bridges.
+
+### Node Recovery Functions
 - `FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}`: tell a node to unregister a
   bridge. Used if a bridge has stopped/failed.
 
-### Called by a bridge to another bridge:
-Nothing?
-
-### Recovery Functions (called by either node or bridge):
+### Bridge Recovery Functions (called by either node or bridge):
 - `FN_FORCE_DISCOVERY DV {} -> {} ![BERR]`: force the bridge to re-enter the discovery
   phase (will momentarily bring it down).
 - `FN_START_BRIDGE DV {} -> {} ![BERR]`: tell a bridge node that has been
