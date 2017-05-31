@@ -33,9 +33,13 @@ an executor using tokens `CALL_FN`, `KILL` or `GET_VALUE`:
     - if `stream=true`, `count` determines how much data to request. See section
       "Stream Functions".
     - the executor must return `ACK` immediately.
-- `GET_VALUE` asks for data that already exists on the node (i.e. if the
-  return value was dropped). It uses the `cx_id` to specify exactly *which*
-  RPC instance it wants data for.
+- `GET_STATUS` asks for the status of a function, including whether it is still
+  running, whether the value at `count` (if `stream=true`) is cached and how
+  many total values are cached from that function. This is useful if the return
+  value was dropped.
+- `GET_VALUE` asks for value of a completed function (i.e. if the return value
+  was dropped). It uses the `cx_id` to specify exactly *which* RPC instance it
+  wants data for.
     - if `stream=true`, `count` determines *which* count to get. The returned
       `VALUE` will also have `stream=true`, with `count` set to `request.count`.
 - For both `CALL_FN` and `GET_VALUE` if `stream=true` then an `ERR` can be returned

@@ -344,32 +344,40 @@ Response Types:
 - `1` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
 - `2` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
 - `3` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
-- `4` `STATUS`: return the `status` from call of `GET_STATUS` on `fn_id` of
-  `cx_id`
+- `4` `STATUS`: return the `status` from call of `GET_STATUS` on `fn_id` of `cx_id`
 
 Reserved:
+- `5`: `--- reserved ---`
+- `6`: `--- reserved ---`
+- `7`: `--- reserved ---`
 - `8`: `--- reserved ---`
 - `9`: `--- reserved ---`
 - `A`: `--- reserved ---`
 
 Request Types:
 - `B` `CALL_FN`: call function `fn_id` using `cx_id` (+payload)
-- `C` `GET_STATUS`: return `status` object of the `fn_id` of `cx_id`.
-- `D` `GET_VALUE`: get value/stream of already called function `fn_id` of `cx_id`
+- `C` `GET_VALUE`: get value/stream of already called function `fn_id` of `cx_id`
+- `D` `GET_STATUS`: return `status` object of the `fn_id` of `cx_id`.
 
 Finish Types:
 - `E` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
 - `F` `CLEAR`: clear cache of `fn_id` using `cx_id`
 
 ## Status Type
-The status object is returned from the `Request Types` messages
+The `STATUS` message type is returned after receiving `GET_STATUS`.
 
 ```
-{num_cached: u32, running: bool, cached: bool}
+{num_cached: u32, running: bool, cached: bool, err: bool, fn_err: bool}
 ```
-  - `num_cached` is the number of values cached by the `fn_id` at `cx_id`
-  - `cached` is whether the value (at `count` if `stream=true`) is cached
-  - `running` is whether `fn_id` at `cx_id` is still running
+- `num_cached` is the number of values cached by the `fn_id` at `cx_id`
+- `cached` is whether the value (at `count` if `stream=true`) is cached
+- `running` is whether `fn_id` at `cx_id` is still running
+- `err` is whether the value (at `count` if `stream=true`) is an error
+- `fn_err` is whether the whole function had an error (regardless of stream)
+
+`GET_STATUS` can also return the following `ERR`:
+- `ERR_UNEXPECTED_GET_STATUS`
+- `ERR_FN_ID_DNE`
 
 ## Ack Types
 Only requests are acknowledged. Response types can just be re-requested if they
@@ -399,15 +407,16 @@ messages were actually just an extra one sent that arrived after the `cx_id` was
 cleared. These exactly match the bit pattern of their MsgType.
 
 Response:
-- `ERR_UNEXPECTED_ACK`: unexpected/extra `ack` received
-- `ERR_UNEXPECTED_KILLED`: unexpected/extra `killed` received
-- `ERR_UNEXPECTED_VALUE`: unexpected/extra `value` (or `stream_value`) received
-- `ERR_UNEXPECTED_ERR`: unexpected/extra `err` received
+- `ERR_UNEXPECTED_ACK`: unexpected/extra `ACK` received
+- `ERR_UNEXPECTED_KILLED`: unexpected/extra `KILLED` received
+- `ERR_UNEXPECTED_VALUE`: unexpected/extra `VALUE` (or `stream_value`) received
+- `ERR_UNEXPECTED_ERR`: unexpected/extra `ERR` received
 
 Request:
-- `ERR_UNEXPECTED_FN`: unexpected/extra `fn_call`, `fn_id` does not exist
-- `ERR_UNEXPECTED_KILL`: unexpected/extra `kill` call, `fn_id` does not exist
-- `ERR_UNEXPECTED_FN_GET`: unexpected/extra `fn_get` received
+- `ERR_UNEXPECTED_FN`: unexpected/extra `CALL_FN` received
+- `ERR_UNEXPECTED_KILL`: unexpected/extra `KILL` call received
+- `ERR_UNEXPECTED_GET_VALUE`: unexpected/extra `GET_VALUE` received
+- `ERR_UNEXPECTED_GET_STATUS`: unexpected/extra `GET_STATUS` received
 
 Finish:
 - `ERR_UNEXPECTED_CLEAR`: unexpected/extra `CLEAR` received
@@ -426,7 +435,6 @@ Finish:
 #### Function Errors
 - `ERR_INVALID_CX`: indexed function called with invalid context (data=current
   `cx_id`)
-
 - `ERR_FN_RUNNING`: a `CLEAR` was sent while the function was still running.
 - `ERR_FN_MUST_DROP`: `dropable=0` for a function that must drop.
 - `ERR_FN_CANT_STREAM`: `stream=1` on a function that does not support streaming.
@@ -435,6 +443,10 @@ Finish:
 - `ERR_FN_MUST_STREAM`: `stream=0` on a function that can only stream.
 - `ERR_FN_GET_DROPABLE`: `GET_VALUE` was called with `dropable=1`. Drop-able
   functions will never be able to return cached data.
+- `ERR_FN_ID_DNE`: returned from functions like `FN_GET_INFO` if the `fn_id`
+  doesn't exist.
+- `ERR_CX_ID_DNE`: returned from functions like `FN_GET_INFO` if the `cx_id`
+  doesn't exist.
 
 #### Kill Errors:
 - `ERR_KILL_STOPPED`: kill failed, `fn_id` at `cx_id` is not running
@@ -478,10 +490,6 @@ can also use them if they make sense for their own functions.
 
 #### Misc
 - `ERR_INTERNAL_ERR`: unknown internal error
-- `ERR_FN_ID_DNE`: returned from functions like `FN_GET_INFO` if the `fn_id`
-  doesn't exist.
-- `ERR_CX_ID_DNE`: returned from functions like `FN_GET_INFO` if the `cx_id`
-  doesn't exist.
 
 #### Bridge Errors
 - `ERR_NODE_NOT_BRIDGE`: returned if bridge functions are called on a node
