@@ -1,5 +1,6 @@
 
 [SPC-err]
+partof = "REQ-0"
 text = '''
 These are the error types.
 

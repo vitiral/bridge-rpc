@@ -21,7 +21,7 @@ protocols. It must be able to define the following characteristics:
 
 The message is defined in the following specs:
 - [[SPC-msg-layout]]: the data layout of the message
-- [[SPC-msg-types]]: types of messages
+- [[SPC-msg-type]]: types of messages
 - [[SPC-msg-status]]: the status type
 '''
 
