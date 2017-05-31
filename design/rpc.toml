@@ -37,10 +37,39 @@ Once the [[SPC-rpc-init]] is complete on the executor, the function shall be run
 on the node. When the function has finished it shall send either a `VALUE` or an
 `ERR` message to the initiator.
 
-If `stream=true` then the values/errors are returned as defined in
-[[SPC-stream]]
+If the data is lost, it may be able to be recovered as defined in
+[[SPC-rpc-dropped]]
 
 The returned `ERR` values are functions specific.
+
+## Stream RPC
+If the `stream` bit is set (and `count` has some value), the RPC is a
+"stream" type and will output `count` values. The values will also have
+`stream=1` and have their `count` set to what index of the stream they are.
+
+The `count` in the RPC controls the number of values to be received:
+- If `count=0` then the number of values will be determined by the function.
+- If `count=MAX_U32` then the stream will be infinite. Some functions, like
+  `heartbeat` are flexible and can output any number of `count`. Almost any
+  mixture of configurations is possible.
+- `count>MAX_U32/2` returns `ERR_INVALID_COUNT` since the highest value of
+  `count`
+
+When returning stream values, the `count` is equal to the index of the value
+in the stream. If `dropable=false` a `CLEAR` message must be sent with the same
+count to verify that the data was received.
+
+The first stream value returned always has `count=0`. The final value always
+has `count && x8000 == 0x8000`. Therefore the maximum `count` is `0x7FFF`.
+
+> Some functions expect `count` to be a specific set of values. See
+> [[REQ-0-fndef]] for the options.
+
+The following are application configurable for each function:
+- The period/frequency of data transmission. Some functions might have their
+  period adjustable via the `input` value. Others always use a specific period,
+  or only return data when it becomes available (i.e. for event monitoring).
+- The rate at which data is dropped from a stream
 '''
 
 [SPC-rpc-dropped]

@@ -1,0 +1,121 @@
+[SPC-msg]
+partof = "REQ-0"
+text = '''
+Messages are the way in which nodes communicate with other nodes, including
+through bridges. It is the data returned from all transactions on all network
+protocols. It must be able to define the following characteristics:
+- metadata about the message:
+    - whether this is an error, RPC, a single-value, a stream-value, etc
+        - if an error, what the error code is and what the data is.
+        - if stream, what it's `count` is.
+    - whether this message needs to be validated.
+        - if so, what it's length and checksum are.
+- context id (`cx_id`): the id that the caller has associated with this
+  RPC context (call, ack, values, errors, etc).
+- initiator unique id (`init_uid`): the node uid that initiated this call
+- executor unique id (`exec_uid`): the node uid that executes this call
+- function id (`fn_id`): the id of the function being called on the node.
+    - whether this is an `sync` or `async` function call does NOT need to
+      be specified in the message. If it is sync, then `index == cx_id`.
+    - Note that `fn_id`'s can mean different things on different nodes.
+
+The message is defined in the following specs:
+- [[SPC-msg-layout]]: the data layout of the message
+- [[SPC-msg-types]]: types of messages
+- [[SPC-msg-status]]: the status type
+'''
+
+[SPC-msg-layout]
+text = '''
+Byte-by-Byte breakdown of a message "packet":
+- u32: `cx_id`: RPC context id
+- u8 : message metadata
+- u8 : bit-reverse of message metadata (for validation)
+- u16: `init_uid`: sender id
+- u16: `exec_uid`: receiver id
+- u16: `fn_id`: function id
+
+Dependent Next Bytes (in this order)
+- If `validation=true`: u16 data length
+- If `stream=true`: u16 `count` of stream
+    - `count && xEFFF`: the u16 value of count.
+    - `count && x8000`: true if this message is the last of the stream
+- If `msg_type=ACK`, u8 ack type
+- If `msg_type=ERR`: u16 err type
+- If `msg_type`=`ERR`, `VALUE`, `CALL_FN` or `STATUS`: the payload
+- If `validation=true`: 5 byte CRC of the WHOLE message
+
+## Message Metadata
+- bit 0: `validation` boolean
+- bit 1: `dropable` boolean
+- bit 2: `stream` boolean
+- bit 3: `--- reserved ---`
+- bit 4-7: msg_type
+'''
+
+[SPC-msg-type]
+text = '''
+### Message Types (`msg_type`)
+Response Types:
+- `0` `ACK`: acknowledge call `fn_id` of `cx_id` (+type)
+- `1` `DONE`: return that the function is done
+- `2` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
+- `3` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
+- `4` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
+- `5` `STATUS`: return status from a call of `GET_STATUS` on `fn_id` of `cx_id`
+
+Not Used:
+- `6`: `--- reserved ---`
+- `7`: `--- reserved ---`
+- `8`: `--- reserved ---`
+- `9`: `--- reserved ---`
+- `A`: `--- reserved ---`
+
+Request Types:
+- `B` `CALL_FN`: call function `fn_id` using `cx_id` (+payload)
+- `C` `GET_VALUE`: get value/stream of already called function `fn_id` of `cx_id`
+- `D` `GET_STATUS`: return `status` object of the `fn_id` of `cx_id`.
+
+Finish Types:
+- `E` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
+- `F` `CLEAR`: clear cache of `fn_id` using `cx_id`
+'''
+
+
+[SPC-msg-ack]
+text = '''
+## Ack Types
+Only requests are acknowledged. Response types can just be re-requested if they
+are dropped. Receiving an ACK is *not necessary* (as `FN_GET_INFO` can be
+called for dropped `ACK`) , but not receiving the ack within the network
+expected period gives a hint to the caller to re-request the data.
+
+Some requests (i.e. `GET_VALUE`) are requesting the return of a value only *if it
+already exists*. Therefore these do not return an ACK, they just return the
+value.
+
+- `ACK_FN`: acknowledge function call (call in progress)
+- `ACK_CLEAR`: acknowledge clear command
+- `ACK_KILL`: acknowledge a kill command (kill not yet done)
+'''
+
+[SPC-msg-status]
+text = '''
+## Status Type
+The `STATUS` type is returned after receiving `GET_STATUS`. It contains a payload
+of the following type:
+```
+{num_cached: u32, init_uid: u16, running: bool, cached: bool, err: bool, fn_err: bool}
+```
+- `num_cached` is the number of values cached by the `fn_id` at `cx_id`
+- `init_uid` is the initiator's uid  who started the function at this `cx_id`
+- `cached` is whether the value (at `count` if `stream=true`) is cached
+- `running` is whether `fn_id` at `cx_id` is still running
+- `err` is whether the value (at `count` if `stream=true`) is an error
+- `fn_err` is whether the whole function had an error (regardless of stream)
+
+`GET_STATUS` can also return the following `ERR`:
+- `ERR_UNEXPECTED_GET_STATUS`
+- `ERR_FN_ID_DNE`
+- `ERR_INVALID_STATUS_COUNT`
+'''

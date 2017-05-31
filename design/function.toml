@@ -1,0 +1,187 @@
+[SPC-fn]
+text = '''
+This is where the functions are all defined.
+
+TODO: this is just a dumping ground right now. Break it up.
+
+# Builtin Functions
+## Network Functions
+- `FN_PING DV {} -> ack ![]` the node is expected to only return an empty value
+- `FN_STREAM_CLOCK DS {period_ms: int} {clock_us: u64} ![]` return the current
+  microsecond value on the device's clock every `period_ms`. This can be used
+  as a node's heartbeat. This ALWAYS uses `cx_id=1` to avoid duplicate streams.
+
+## Bridge Node Functions
+These functions are how communication happens from node -> bridge and
+bridge -> node. These are used in node registration and discovery.
+
+> Many of these can return bridge related errors documented in "Bridge Node Errors".
+> These errors are represented by `BERR` below.
+
+### Broadcast Functions
+There are only two functions which have to be implemented in a network specific
+manner. These are used for nodes and bridges to make sure other nodes know they
+exist.
+
+- `FN_BROADCAST_NODE DV {cluster_uid: u32} {} ![]`: broadcast that this node
+  exists on a certain cluster within a local network. Bridges on that cluster in
+  the local network cluster will respond with `FN_REGISTER_BRIDGE`. `exec_uid`
+  is always set to `0` for this function.
+- `FN_BROADCAST_BRIDGE DV {cluster_uid: u32} {} ![]`: broadcast that this bridge
+  exists on a certain cluster. Nodes and bridges on that cluster will respond
+  with `FN_REGISTER_NODE`. `exec_uid` is always set to `0` for this function.
+
+### Called by anything to anything:
+- `FN_GET_BRIDGES DV {} {bridge_uids: [u16; 8], len: u8} ![]`: return up
+  to the first eight bridges currently registered on the node (in ordered
+  priority). Most nodes will not have more than 8 bridges.
+- `FN_STREAM_BRIDGES GS {} {bridge_uid: u16} ![]`: return a stream
+  of up to `count` bridges on the node. If `count` is 0 or `INFINITE` then
+  stream all known bridges.
+
+```
+FN_STREAM_REGISTERED_NODES GI {}
+-> {node_uid: u16, local_bridges: [u16; 8]}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `node_uid`s whenever they
+become available or updated (past and future) future, or whenever a
+`local_bridge` is added. This is the primary command that allows bridges to stay
+up to date on what other bridges have access to.
+
+This ALWAYS uses `cx_id=1` to make sure that there are not multiple running
+streams (but if the bridge went offline the stream may need to be restarted).
+
+Each node has a `node_uid` and up to 8 `network_uid`s.
+
+```
+FN_STREAM_REGISTERED_BRIDGES GI {}
+-> {bridge_uid: u16, path: [u16; 32]}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `bridge_uid`s whenever they
+become available or updated (past and future).
+
+When this function gets sent to other bridges, it's own `node_uid` is appened
+onto `path`. If the other bridge exists on the local network it will ignore
+that `uid`, otherwise it will keep it and keep passing it along.
+
+- FN_GET_BRIDGE_PATH GV {} -> {path: [u16: 32]} ![BERR]` similar to
+  `FN_STREAM_REISTERED_BRIDGES` except returns a single bridge's path (and
+  validates that it works -- rebuilding if necessary).
+
+### Called by anything to a bridge:
+- `FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]`: register self with the
+  bridge. Used during all bridge's discovery stage. `is_bridge` specifies
+  whether the node is also a bridge.
+  This method will NEVER be bridged. If that is attempted, `ERR_CANNOT_BRIDGE`
+  is returned.
+- `FN_NODE_EXISTS DV {node_uid: u16} -> {exists: bool} ![BERR]`: return true if the
+  bridge has the `node_uid` stored (and therefore knows how to reach it).
+
+### Called by a bridge to a node
+- `FN_REGISTER_BRIDGE GV {} -> {}`: register this bridge with the node. Used
+  by a bridge if the node sends `FN_BROADCAST_NODE`.
+
+### Node Recovery Functions
+- `FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}`: tell a node to unregister a
+  bridge. Used if a bridge has stopped/failed.
+
+### Bridge Node Recovery Functions (called by either node or bridge):
+- `FN_FORCE_DISCOVERY DV {} -> {} ![BERR]`: force the bridge to re-enter the discovery
+  phase (will momentarily bring it down).
+- `FN_START_BRIDGE DV {} -> {} ![BERR]`: tell a bridge node that has been
+  stopped to be a bridge again. NOP if node is already a bridge.
+- `FN_STOP_BRIDGE DV {} -> {} ![BERR]`: force a bridge to stop acting as a
+  bridge. Can be used if the bridge is misbehaving or there are too many
+  bridges. The bridge will un-register with nodes before shutting down.
+
+## Functions about Functions
+```
+FN_GET_FN_CX_IDS DU {}
+    -> {fns: [{init_uid: u16, cx_id: u32}; 16], len: u8}
+```
+Get a stream (in batches of up to 16) of all `(init_uid, cx_id)` pairs running a
+device's `fn_id`. This tells you how many of a specific function are running
+concurrently.
+
+```
+FN_STREAM_CALLS GI {fn_id: u16, invalid: bool, with_input: bool}
+    -> {cx_id: u32, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of all (future) calls made to this node's `fn_id` as soon as they
+are received.
+- If `invalid=false` then only send calls that result in `ACK`.
+- if `with_input=true` then also send the data received in the input.
+
+> the length `N` of `input` is `input_len`
+
+```
+FN_STREAM_ALL_CALLS GI {
+    only_user: bool,
+    only_valid: bool,
+    only_indexed: bool,
+    only_undropable: bool,
+    with_input: bool,
+}
+-> {cx_id: u32, fn_id: u16, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of ALL (future) calls made to this node as soon as they are
+received.
+- if `only_user=true` then only send user functions (not builtin)
+- if `only_valid=true` then only send calls that result in `ACK`.
+- if `only_indexed=true` then only send calls to indexed functions
+- if `only_undropable=true` then only send calls which have `dropable=false`
+- if `with_input=true` then also send the data received in the input.
+
+This function only accepts metadata of `cx_id=1` to prevent multiple streams to
+the same initiator.
+
+> the length `N` of `input` is `input_len`
+
+## Node Control Functions
+```
+FN_GET_NODE_INFO DV {} -> {
+    bridge: bool,           # true if node is a bridge
+    num_networks: u16,      # number of networks this node has access to
+    buffer_size: u32,       # total buffer size (input+output)
+    cluster_uid: u32,       # the cluster this node is a part of
+    uptime: u64,            # milliseconds since power-on
+} ![]
+```
+Return info related to this library about the node.
+
+- `FN_GET_ADDRS GU {} -> {addr_type: u16, addr: [u8; 32]} ![]`
+Stream the addresses of this node on it's networks.
+
+This function only accepts `cx_id=0` and will never buffer past values (it only
+returns the addresses it currently has).
+
+```
+FN_GET_HW_INFO DV {} -> {
+    sleep: bool,        # true if device can sleep
+    ip_net: bool,       # true if device uses tcp/ip network
+    can_net: bool,      # true if device uses CAN network
+    uart_net: bool,     # true if device uses UART network
+    zigbee_net: bool,   # true if device uses ZigBee network
+    other_net: bool,    # true if device has other network
+
+    cpu_name: [u8; 12],
+    num_cores: u32,
+    frequency_mhz: u32,
+    ram_mb: u32,
+    num_devices: u32,
+  } ![]
+```
+Return information about the hardware of the device
+
+```
+FN_GET_RPC_INFO DV {} -> {
+    rpcs_running: u32,  # how many rpcs are being run on this node
+    rpcs_cached: u32,   # number of completed cached rpcs
+    bytes_cached: u64,  # number of completed cached bytes
+    rpcs_run: u64,      # total count of number of rpcs successfully started
+} ![]
+```
+Return information about running processes
+'''
