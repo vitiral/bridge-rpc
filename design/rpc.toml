@@ -123,26 +123,28 @@ Indexed functions work by:
   the index function. This prevents the device from being shutdown without
   anyone knowing. (see Note 1)
 - every time the index is successfully called (whenever it returns `ACK`),
-  it incremenets the `index`
+  it incremenets the `index`.
 - therefore it must be called in sequential order and no calls can be
   accidental.
 
-Indexed functions make it impossible to *acidentally* call a function twice. If
-you try to call a function and receive `ERR_INVALID_INDEX` it can mean several
-things depending on `init_uid` of `GET_STATUS`:
-- if `init_uid` is your id, then you successfully called the function on a
+Indexed functions make it impossible to *acidentally* call a function twice (or
+more). If `cx_id` does not equal the node's internal index it will return
+`ERR_INVALID_INDEX`. This can mean it can mean several things depending on
+`init_uid` of `GET_STATUS`:
+- if `init_uid` is your `node_id`, then you successfully called the function on a
   previous call (yay!).
-- if `init_uid` is NOT your id, then a *different node* called the function.
+- if `init_uid` is NOT your `node_uid`, then a *different node* called the function.
   Your application should probably try to do some communication to figure out
   what's going on and what to do next.
-- if the context was cleared (so `init_uid` is unknown from `GET_STATUS`), the
-  information could still have been obtained if values from `FN_STREAM_CALLS` or
-  `FN_STREAM_ALL_CALLS` were stored in an application specific manner for query
-  (only the functions, not the database, are supported by this library).
+- if the context was cleared (so `init_uid` of that `cx_id` is unknown from
+  `GET_STATUS`), the information could still have been obtained if values from
+  `FN_STREAM_CALLS` or `FN_STREAM_ALL_CALLS` were stored in an application
+  specific manner for query (only the functions, not the database, are
+  supported by this library).
 
 > Note 1: if a device receives the unlock command but the return value is not
-> cleared within a valid amount of time, it will clear the context and start
-> back at `index=0`.
+> cleared within an application specific amount of time, it will clear the
+> context and start back at `index=0`.
 '''
 
 [SPC-rpc-finish]
