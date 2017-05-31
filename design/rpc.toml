@@ -116,6 +116,17 @@ Indexed functions are intended for things you really don't want to accidentally
 call twice such as "drive forward 10 meters" or "delete a specific file" or
 "overwrite this value in the database". 
 
+Indexed functions work by:
+- only executes `FN_CALL` that have `cx_id=index`
+- index starts at 0 at startup. The first `FN_CALL` must have
+  `cx_id=0,dropable=false` (with no input), and receive `CLEAR`, to "unlock"
+  the index function. This prevents the device from being shutdown without
+  anyone knowing. (see Note 1)
+- every time the index is successfully called (whenever it returns `ACK`),
+  it incremenets the `index`
+- therefore it must be called in sequential order and no calls can be
+  accidental.
+
 Indexed functions make it impossible to *acidentally* call a function twice. If
 you try to call a function and receive `ERR_INVALID_INDEX` it can mean several
 things depending on `init_uid` of `GET_STATUS`:
@@ -128,6 +139,10 @@ things depending on `init_uid` of `GET_STATUS`:
   information could still have been obtained if values from `FN_STREAM_CALLS` or
   `FN_STREAM_ALL_CALLS` were stored in an application specific manner for query
   (only the functions, not the database, are supported by this library).
+
+> Note 1: if a device receives the unlock command but the return value is not
+> cleared within a valid amount of time, it will clear the context and start
+> back at `index=0`.
 '''
 
 [SPC-rpc-finish]
