@@ -4,7 +4,9 @@ The purpose of the Bridge Protocol is to have an ultra lightweight remote
 procedural call framework that can be run on microcontrollers and contains
 "bridge" nodes for bridging between protocols.
 
-See the README.md for more information.
+See the [README.md][1] for more information about the basic requirements.
+
+[1]: https://github.com/vitiral/bridge-rpc/blob/master/README.md
 '''
 
 [REQ-0-definitions]
@@ -36,34 +38,6 @@ text = '''
 - `value`: the value returned by a non-streaming function call.
 - `stream_value`: one of `count` values returned by a streaming functionc call.
 '''
-
-[REQ-0-fndef]
-text = '''
-Functions are defined in the form
-```
-DS FN_NAME {IV_NAME: ARG_TYPE, ...} -> {RV_NAME: RV_TYPE, ...} ![ERRORS]
-```
-where :
-- `D` is the drop-able setting
-    - `D` for "`dropable` only"
-    - `G` for "`dropable` can be anything" (i.e. can be guaranteed)
-- `S` is the stream setting
-    - `V` for "`stream` must be 0" (must return single value)
-    - `A` for "`stream` can be anything with any count specified" (can return
-      single value)
-    - `S` for "must be stream with any `count` specified."
-    - `C` for "must be stream with exact `count` specified"
-    - `U` for "must be stream with `count=0` (count unknown)"
-    - `I` for "must be stream with `count=INFINITE` or `count=0` specified"
-- `FN_NAME` is the name of the function
-- `IV` is "input value"
-- `RV` is "return value"
-- `ERRORS` what function specific errors can be returned (empty if none)
-
-Note: a return type of `ack` means that the function ONLY returns `ACK` (no
-value).
-'''
-
 
 [SPC-0-done]
 partof = "REQ-0-definitions"

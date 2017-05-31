@@ -5,6 +5,31 @@ This is where the functions are all defined.
 
 TODO: this is just a dumping ground right now. Break it up.
 
+# Definition
+Functions are defined in the form
+```
+DS FN_NAME {IV_NAME: ARG_TYPE, ...} -> {RV_NAME: RV_TYPE, ...} ![ERRORS]
+```
+where :
+- `D` is the drop-able setting
+    - `D` for "`dropable` only"
+    - `G` for "`dropable` can be anything" (i.e. can be guaranteed)
+- `S` is the stream setting
+    - `V` for "`stream` must be 0" (must return single value)
+    - `A` for "`stream` can be anything with any count specified" (can return
+      single value)
+    - `S` for "must be stream with any `count` specified."
+    - `C` for "must be stream with exact `count` specified"
+    - `U` for "must be stream with `count=0` (count unknown)"
+    - `I` for "must be stream with `count=INFINITE` or `count=0` specified"
+- `FN_NAME` is the name of the function
+- `IV` is "input value"
+- `RV` is "return value"
+- `ERRORS` what function specific errors can be returned (empty if none)
+
+Note: a return type of `ack` means that the function ONLY returns `ACK` (no
+value).
+
 # Builtin Functions
 ## Network Functions
 - `FN_PING DV {} -> ack ![]` the node is expected to only return an empty value

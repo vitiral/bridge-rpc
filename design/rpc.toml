@@ -63,7 +63,7 @@ The first stream value returned always has `count=0`. The final value always
 has `count && x8000 == 0x8000`. Therefore the maximum `count` is `0x7FFF`.
 
 > Some functions expect `count` to be a specific set of values. See
-> [[REQ-0-fndef]] for the options.
+> [[SPC-fn]] for the options.
 
 The following are application configurable for each function:
 - The period/frequency of data transmission. Some functions might have their

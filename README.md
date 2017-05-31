@@ -47,3 +47,6 @@ The library will be split up into several crates:
 
 The reference and primary implementation for all device types shall be in rust.
 
+[**See the Design Documents rendered with artifact**][1]
+
+[1]: https://vitiral.github.io/bridge-rpc/#artifacts/REQ-0
