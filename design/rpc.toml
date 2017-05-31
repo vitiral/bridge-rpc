@@ -14,20 +14,21 @@ text = '''
 # Initializing an RPC: Calling Functions
 
 Nodes allow other nodes to run functions on them. An RPC is initialized when a
-node received a `CALL_FN` message type with valid
-`fn_id,cx_id,stream,dropable,count` metadata.
+node received a `CALL_FN` message type with valid metadata.
 - Indexed functions require `cx_id` to be equal to their internal `index`.
-  If `cx_id!=index` then they return `ERR_INVALID_INDEX`
+  If `cx_id != index` then they return `ERR_INVALID_INDEX`
 - Some functions are defined to be only dropable. If `dropable=true` for such
   functions they return `ERR_FN_MUST_DROP`
 - If `stream=true` then `count` determines how much data to request. Some
   functions cannot stream, or require count to be specific values. See
-  [[SPC-fn-stream]]. 
+  [[SPC-stream]]. 
 
 Immediately after receiving a valid function call, and before actually
 running the function, the node must:
-- put an `ACK` message on the buffer
-- if it is an indexed function, increment its `index`
+- if it is an indexed function, increment its `index`.
+- put an `ACK` message on the buffer.
+- handle any `FN_STREAM_CALLS` and `FN_STREAM_ALL_CALLS` requests by putting
+  the call data on the buffer.
 '''
 
 [SPC-rpc-value]
@@ -62,8 +63,8 @@ it can be retrieved through:
 
 # Robustness
 It is imporant to point out how this completes the specification for robustness.
-We will look at both drop-able and undrop-able values as well as indexed
-functions.
+We will look at both drop-able and undrop-able values. Indexed functions are
+discussed in [[SPC-rpc-indexed]].
 
 ## Handling Dropped Values when `dropable=true`
 Dropable values are the easiest for seeing the use case of robustness. There
@@ -99,8 +100,10 @@ the `CLEAR` within an application defined time it can:
 - if the `CLEAR` message had previously been sent (but dropped), these messages
   will result in `ERR_UNEXPECTED_DONE` since the context will have already been
   cleared on the initiator. This error will be interpreted as a `CLEAR`.
+'''
 
-## Indexed Functions
+[SPC-rpc-indexed]
+text = '''
 Indexed functions are the final piece of the robustness puzzle. They guarantee
 that function calls (on indexed functions) maintain:
 

@@ -279,9 +279,10 @@ the same initiator.
 ```
 FN_GET_NODE_INFO DV {} -> {
     bridge: bool,           # true if node is a bridge
-    num_networks: u16,
-    max_buffer_size: u32,   # max buffer size in bytes
+    num_networks: u16,      # number of networks this node has access to
+    buffer_size: u32,       # total buffer size (input+output)
     cluster_uid: u32,       # the cluster this node is a part of
+    uptime: u64,            # milliseconds since power-on
 } ![]
 ```
 Return info related to this library about the node.
@@ -289,12 +290,11 @@ Return info related to this library about the node.
 ```
 FN_GET_HW_INFO DV {} -> {
     sleep: bool,        # true if device can sleep
-    concurrency: bool,  # true if concurrency is supported
-    ip_bus: bool,       # true if device uses IP
-    can_bus: bool,      # true if device uses CAN bus
-    uart_bus: bool,     # true if device uses UART
-    zigbee_bus: bool,   # true if device uses ZigBee
-    other_bus: bool,    # true if device has other bus
+    ip_net: bool,       # true if device uses tcp/ip network
+    can_net: bool,      # true if device uses CAN network
+    uart_net: bool,     # true if device uses UART network
+    zigbee_net: bool,   # true if device uses ZigBee network
+    other_net: bool,    # true if device has other network
 
     cpu_name: [u8; 12],
     num_cores: u32,
