@@ -14,6 +14,11 @@ text = '''
 - `bridge`: a node that other nodes can register themselves on that can talk on
   at least one network and knows the `network_uid` for all networks.
   Can act as a "bridge" between networks.
+- `function`: a declared method with a `fn_id` that begins the RPC process on
+  a node.
+- `RPC`: a single remote procedural call, ack, return value, kill clear, etc.
+  Can be thought of as all communication and execution that happens for a
+  unique `(init_uid,exec_uid,fn_id,cx_id)` tuple.
 - `cluster_uid`: cluster unique id which represents a collection of nodes and
   bridges with the same `cluster_uid`. Defined by the application developer at
   compile time.
@@ -30,6 +35,8 @@ text = '''
   get called twice.
 - `input_value`: the data passed along with the `fn_id` with `CALL_FN`. The
   "input" value to the function.
+- `value`: the value returned by a non-streaming function call.
+- `stream_value`: one of `count` values returned by a streaming functionc call.
 '''
 
 [SPC-0-done]

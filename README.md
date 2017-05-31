@@ -47,64 +47,6 @@ The library will be split up into several crates:
 
 The reference and primary implementation for all device types shall be in rust.
 
-# Node Operation
-A cluster is simply a collection of nodes and bridges where each node has a
-unique `node_uid` as well as the `cluster_uid`.
-
-A node is simply a device that has a `node_uid` and can communicate on some
-protocol. It participates by declaring functions. Functions are just pieces of
-code that have a `fn_id`, input+return layout and settings for `[indexed,
-dropable, stream]`. More into what those mean in a bit.
-
-The declared functions can be called by any other node on the network by
-specifying the `exec_uid` of the executor and their own node_uid as
-`init_uid`. The initiator node also specifies `[cx_id, input_data, dropable,
-stream]`.
-
-When a node connects to the network:
-- the node broadcasts `FN_BROADCAST_NODE` (it continues to do this over an application
-  specific period)
-- bridges reply with `FN_REGISTER_BRIDGE`. The node will store (typically)
-  between 2-5 of these bridges.
-- other nodes on the cluster can now use the node as an executor of functions
-  using `FN_CALL`.
-
-Nodes allow other nodes to run functions on them. An initiator makes a call to
-an executor using tokens `FN_CALL`, `KILL` or `FN_GET`:
-- `FN_CALL` attempts to execute an RPC on the node
-    - if `stream=true`, `count` determines how much data to request. See section
-      "Stream Functions".
-    - the executor must return `ACK` immediately.
-- `FN_GET` asks for data that already exists on the node (i.e. if the
-  return value was dropped). It uses the `cx_id` to specify exactly *which*
-  RPC instance it wants data for.
-    - if `stream=true`, `count` determines *which* count to get. The returned
-      `VALUE` will also have `stream=true`, with `count` set to `request.count`.
-- For both `FN_CALL` and `FN_GET` if `stream=true` then an `ERR` can be returned
-  with:
-    - `stream=false`: declares that the function ITSELF failed and there will be
-      no more values.
-    - `stream=true`: declares that there was an error retrieving specific data
-      at `count`.
-- `KILL` returns `KILLED` when executed. `stream` must be false for both.
-
-When an initiator gets a response token from the executor:
-- nothing is sent when an `ACK` is received. `ACK` is *only* used to help
-  nodes understand network latency and know whether they need to query the
-  status of a function.
-- `CLEAR` should be sent when a `VALUE` or `ERR` is received and `dropable=false`
-    - if the function is still running it returns `ERR_FN_RUNNING`
-    - if `stream=false` this signals the function as being done and ALL data is
-      cleared (even for streaming functions).
-    - if `stream=true` this signals data at `count` being received. The function
-      will continue (until done and all stream data is cleared) but that `count`
-      of the stream will be cleared.
-- A `CLEAR` with `stream=false` will always result in all data being cleared,
-  even if the function is a stream type.
-- `KILL` has the ability to force-clear data.
-    - if `KILL,dropable=true` then the function will be killed AND data will be
-      cleared.
-    - If the function was already killed, `KILL` will return `ERR_KILL_STOPPED`.
 
 # Bridge Operation
 A bridge is simply a pass through node: messages who's `init_uid`/`exec_uid` do
@@ -142,7 +84,7 @@ Good examples of drop-able fns are:
 - `FN_PING` and `FN_HEARTBEAT`: where you just want the function to return a
   value. A dropped message simply indicates network issues, which is the point
   of these functions.
-- info queries (`FN_GET_FN_INFO`, `FN_GET_HW_INFO`, etc): for always getting the
+- info queries (`FN_GET_INFO`, `FN_GET_HW_INFO`, etc): for always getting the
   most up-to-date information.
 - reactive data stream: if you have a system that is taking in streams of data
   (i.e. tempearature, light levels, distance monitoring, etc) and reacting
@@ -292,8 +234,7 @@ streams (but if the bridge went offline the stream may need to be restarted).
 
 ## Functions about Functions
 ```
-FN_GET_FN_INFO DV {fn_id: u32, cx_id: u32}`
-    -> {running: bool, cached: bool, count: u32}`
+FN_GET_INFO DV {cx_id: u32, fn_id: u16}
     ![ERR_FN_ID_DNE, ERR_CX_ID_DNE]`:
 ```
 Return information about a function with a specific `fn_id` and `cx_id`.
@@ -386,7 +327,7 @@ Dependent Next Bytes (in this order)
     - `count && x8000`: true if this message is the last of the stream
 - If `ACK`, u8 ack type
 - If `ERR`: u16 err type
-- If `ERR`, `VALUE`, `FN_CALL`: the payload
+- If `ERR`, `VALUE`, `CALL_FN`: the payload
 - If `validation=true`: 5 byte CRC of WHOLE message
 
 ## Message Metadata
@@ -403,28 +344,40 @@ Response Types:
 - `1` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
 - `2` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
 - `3` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
+- `4` `STATUS`: return the `status` from call of `GET_STATUS` on `fn_id` of
+  `cx_id`
 
 Reserved:
 - `8`: `--- reserved ---`
 - `9`: `--- reserved ---`
 - `A`: `--- reserved ---`
-- `B`: `--- reserved ---`
 
 Request Types:
-- `C` `FN_CALL`: call function `fn_id` using `cx_id` (+payload)
-- `D` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
-- `E` `FN_GET`: get value/stream of already called function `fn_id` of `cx_id`
+- `B` `CALL_FN`: call function `fn_id` using `cx_id` (+payload)
+- `C` `GET_STATUS`: return `status` object of the `fn_id` of `cx_id`.
+- `D` `GET_VALUE`: get value/stream of already called function `fn_id` of `cx_id`
 
 Finish Types:
+- `E` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
 - `F` `CLEAR`: clear cache of `fn_id` using `cx_id`
+
+## Status Type
+The status object is returned from the `Request Types` messages
+
+```
+{num_cached: u32, running: bool, cached: bool}
+```
+  - `num_cached` is the number of values cached by the `fn_id` at `cx_id`
+  - `cached` is whether the value (at `count` if `stream=true`) is cached
+  - `running` is whether `fn_id` at `cx_id` is still running
 
 ## Ack Types
 Only requests are acknowledged. Response types can just be re-requested if they
-are dropped. Receiving an ACK is *not necessary* (as `FN_GET_FN_INFO` can be
+are dropped. Receiving an ACK is *not necessary* (as `FN_GET_INFO` can be
 called for dropped `ACK`) , but not receiving the ack within the network
 expected period gives a hint to the caller to re-request the data.
 
-Some requests (i.e. `FN_GET`) are requesting the return of a value only *if it
+Some requests (i.e. `GET_VALUE`) are requesting the return of a value only *if it
 already exists*. Therefore these do not return an ACK, they just return the
 value.
 
@@ -480,7 +433,7 @@ Finish:
 - `ERR_FN_CANT_UNLIMITED_STREAM`: `stream=1,count=MAX_U32` on a function
   that does not support unlimited streaming.
 - `ERR_FN_MUST_STREAM`: `stream=0` on a function that can only stream.
-- `ERR_FN_GET_DROPABLE`: `FN_GET` was called with `dropable=1`. Drop-able
+- `ERR_FN_GET_DROPABLE`: `GET_VALUE` was called with `dropable=1`. Drop-able
   functions will never be able to return cached data.
 
 #### Kill Errors:
@@ -525,9 +478,9 @@ can also use them if they make sense for their own functions.
 
 #### Misc
 - `ERR_INTERNAL_ERR`: unknown internal error
-- `ERR_FN_ID_DNE`: returned from functions like `FN_GET_FN_INFO` if the `fn_id`
+- `ERR_FN_ID_DNE`: returned from functions like `FN_GET_INFO` if the `fn_id`
   doesn't exist.
-- `ERR_CX_ID_DNE`: returned from functions like `FN_GET_FN_INFO` if the `cx_id`
+- `ERR_CX_ID_DNE`: returned from functions like `FN_GET_INFO` if the `cx_id`
   doesn't exist.
 
 #### Bridge Errors

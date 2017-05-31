@@ -1,0 +1,69 @@
+[SPC-cluster]
+text = '''
+A cluster is simply a collection of nodes (some of them probably bridges) that
+all have the same `cluster_uid` and each node has a unique `node_uid`.
+'''
+
+[SPC-node]
+text = '''
+A node is a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
+that can communicate on one or more networks.
+
+It participates in the cluster by declaring functions. Functions are just a
+`fn_id` associated with a routine which performs an entire RPC when it is
+executed using `CALL_FN`.
+
+The declared functions can be called by any other node on the network by
+specifying the `exec_uid` of the executor and their own node_uid as
+`init_uid`. The initiator node also specifies `[cx_id, input_data, dropable,
+stream]`.
+
+# Network Startup
+- the node broadcasts `FN_BROADCAST_NODE` (it continues to do this over an application
+  specific period)
+- bridges reply with `FN_REGISTER_BRIDGE`. The node will store (typically)
+  between 2-5 of these bridges.
+- other nodes on the cluster can now use the node as an executor of functions
+  using `CALL_FN`.
+
+# Initializaing an RPC: Calling Functions
+Nodes allow other nodes to run functions on them. An initiator makes a call to
+an executor using tokens `CALL_FN`, `KILL` or `GET_VALUE`:
+- `CALL_FN` attempts to execute an RPC on the node
+    - if `stream=true`, `count` determines how much data to request. See section
+      "Stream Functions".
+    - the executor must return `ACK` immediately.
+- `GET_VALUE` asks for data that already exists on the node (i.e. if the
+  return value was dropped). It uses the `cx_id` to specify exactly *which*
+  RPC instance it wants data for.
+    - if `stream=true`, `count` determines *which* count to get. The returned
+      `VALUE` will also have `stream=true`, with `count` set to `request.count`.
+- For both `CALL_FN` and `GET_VALUE` if `stream=true` then an `ERR` can be returned
+  with:
+    - `stream=false`: declares that the function ITSELF failed and there will be
+      no more values.
+    - `stream=true`: declares that there was an error retrieving specific data
+      at `count`.
+- `KILL` returns `KILLED` when executed. `stream` must be false for both.
+
+# Finishing RPC: Clearing Context
+When an initiator gets a value from the executor and `dropable=false` it should
+notify the executor that the data can be cleared.
+- Note: nothing is sent when an `ACK` is received. However, if `ACK` is NOT received
+  for a configurable period then the initiator should send `GET_VALUE` or
+  `FN_GET_INFO` to re-request the value/make sure the function is running.
+- `CLEAR` should be sent when a `VALUE` or `ERR` is received and
+  `dropable=false`
+    - if the function is still running it returns `ERR_FN_RUNNING`
+    - if `stream=false` this signals the function as being done and ALL data is
+      cleared (even for streaming functions).
+    - if `stream=true` this signals data at `count` being received. The function
+      will continue (until done and all stream data is cleared) but that `count`
+      of the stream will be cleared.
+- A `CLEAR` with `stream=false` will always result in all data being cleared,
+  even if the function is a stream type.
+- `KILL` has the ability to force-clear data.
+    - if `KILL,dropable=true` then the function will be killed AND data will be
+      cleared.
+    - If the function was already killed, `KILL` will return `ERR_KILL_STOPPED`.
+'''
