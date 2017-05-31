@@ -48,25 +48,8 @@ The library will be split up into several crates:
 The reference and primary implementation for all device types shall be in rust.
 
 
-# Bridge Operation
-A bridge is simply a pass through node: messages who's `init_uid`/`exec_uid` do
-not equal the bridge's own `node_uid` are simply passed through to the correct
-node/bridge in the chain.
-
-> The direction the message goes is determined by the type. Request types are
-> always going to the `exec_uid` and Response types are always going to the
-> `init_uid`.
-
-The bridge knows where data goes because it holds a table of `node_uid`s mapped
-to the protocol-specific addresses of the next bridge. It learns of the
-`node_uid`s/addresses through the Discovery phase.
-
-The discovery phase goes as follows:
-- the bridge sends out `FN_BROADCAST_BRIDGE`
-- other nodes and bridges respond with `FN_REGISTER_SELF`
-- whenever another bridge calls `FN_REGISTER_SELF`, `FN_STREAM_REGISTERED_NODES`
-  is also sent to that bridge. This guarantees that the two bridges stay in
-  sync.
+# NOTICE: I am removing things from this readme and putting them in the design
+# doc. Stay tuned.
 
 # Function Description
 Functions are the way in which the user's software communicates with other
@@ -181,11 +164,12 @@ manner. These are used for nodes and bridges to make sure other nodes know they
 exist.
 
 - `FN_BROADCAST_NODE DV {cluster_uid: u32} {} ![]`: broadcast that this node
-  exists on a certain cluster. Bridges on that cluster will respond with
-  `FN_REGISTER_BRIDGE`
+  exists on a certain cluster within a local network. Bridges on that cluster in
+  the local network cluster will respond with `FN_REGISTER_BRIDGE`. `exec_uid`
+  is always set to `0` for this function.
 - `FN_BROADCAST_BRIDGE DV {cluster_uid: u32} {} ![]`: broadcast that this bridge
   exists on a certain cluster. Nodes and bridges on that cluster will respond
-  with `FN_REGISTER_NODE`
+  with `FN_REGISTER_NODE`. `exec_uid` is always set to `0` for this function.
 
 ### Called by anything to anything:
 - `FN_GET_BRIDGES DV {} {bridge_uids: [u16; 8], len: u8} ![]`: return up
@@ -197,21 +181,41 @@ exist.
 
 ```
 FN_STREAM_REGISTERED_NODES GI {}
--> {node_uid: u16, addr_type: u16, addr: [u8; 32]}
+-> {node_uid: u16, local_bridges: [u16; 8]}
 ![BERR]`
 ```
 Command for a bridge to stream all it's registered `node_uid`s whenever they
-become available, including ones it already has and ones it will get in the
-future. This is the primary command that allows bridges to stay up to date
-on what other bridges have access to.
+become available or updated (past and future) future, or whenever a
+`local_bridge` is added. This is the primary command that allows bridges to stay
+up to date on what other bridges have access to.
 
 This ALWAYS uses `cx_id=1` to make sure that there are not multiple running
 streams (but if the bridge went offline the stream may need to be restarted).
+
+Each node has a `node_uid` and up to 8 `network_uid`s.
+
+```
+FN_STREAM_REGISTERED_BRIDGES GI {}
+-> {bridge_uid: u16, path: [u16; 32]}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `bridge_uid`s whenever they
+become available or updated (past and future).
+
+When this function gets sent to other bridges, it's own `node_uid` is appened
+onto `path`. If the other bridge exists on the local network it will ignore
+that `uid`, otherwise it will keep it and keep passing it along.
+
+- FN_GET_BRIDGE_PATH GV {} -> {path: [u16: 32]} ![BERR]` similar to
+  `FN_STREAM_REISTERED_BRIDGES` except returns a single bridge's path (and
+  validates that it works -- rebuilding if necessary).
 
 ### Called by anything to a bridge:
 - `FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]`: register self with the
   bridge. Used during all bridge's discovery stage. `is_bridge` specifies
   whether the node is also a bridge.
+  This method will NEVER be bridged. If that is attempted, `ERR_CANNOT_BRIDGE`
+  is returned.
 - `FN_NODE_EXISTS DV {node_uid: u16} -> {exists: bool} ![BERR]`: return true if the
   bridge has the `node_uid` stored (and therefore knows how to reach it).
 
@@ -286,6 +290,12 @@ FN_GET_NODE_INFO DV {} -> {
 } ![]
 ```
 Return info related to this library about the node.
+
+- `FN_GET_ADDRS GU {} -> {addr_type: u16, addr: [u8; 32]} ![]`
+Stream the addresses of this node on it's networks.
+
+This function only accepts `cx_id=0` and will never buffer past values (it only
+returns the addresses it currently has).
 
 ```
 FN_GET_HW_INFO DV {} -> {
@@ -449,6 +459,8 @@ Finish:
 - `ERR_MESSAGE_CORRUPT`: `validation=1` and the message failed the CRC check
 
 #### Bridge Node Protocol Errors
+- `ERR_CANNOT_BRIDGE`: a function that cannot be bridged was attempted to be
+  bridged.
 - `ERR_UNREGISTERED_INIT`: returned if an `init_id` in a message is not
   registered on a bridge. This represents a critical error.
 - `ERR_UNREGISTERED_EXEC`: returned if an `exec_id` in a message is not

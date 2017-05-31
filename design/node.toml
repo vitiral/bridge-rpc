@@ -1,10 +1,12 @@
 [SPC-cluster]
+partof = "REQ-0"
 text = '''
 A cluster is simply a collection of nodes (some of them probably bridges) that
 all have the same `cluster_uid` and each node has a unique `node_uid`.
 '''
 
 [SPC-node]
+partof = "REQ-0"
 text = '''
 A node is a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
 that can communicate on one or more networks.
@@ -25,4 +27,76 @@ stream]`.
   between 2-5 of these bridges.
 - other nodes on the cluster can now use the node as an executor of functions
   using `CALL_FN`.
+'''
+
+[SPC-bridge]
+partof = "REQ-0"
+text = '''
+A bridge is simply a pass through node: messages who's `init_uid`/`exec_uid` do
+not equal the bridge's own `node_uid` are simply passed through to the correct
+node/bridge in the chain.
+
+Bridges have the following additional information:
+- the `network_uid` assigned to all of their own networks
+
+> The direction the message goes is determined by the type. Request types are
+> always going to the `exec_uid` and Response types are always going to the
+> `init_uid`.
+
+# Discovery Phase
+The discovery phase goes as follows:
+- the bridge sends out `FN_BROADCAST_BRIDGE`
+- other nodes and bridges respond with `FN_REGISTER_SELF`
+- whenever another bridge calls `FN_REGISTER_SELF,bridge=true`,
+  `FN_STREAM_REGISTERED_NODES` and `FN_STREAM_REGISTERED_BRIDGES` is also sent
+  to that bridge. This guarantees that the two bridges stay in sync.
+
+These functions allow all bridges to know about:
+- all node's and their local bridges
+- all bridges and the next bridge in the chain to get to them
+
+[[SPC-bridge-path]] goes into more details about path discovery.
+'''
+
+[SPC-bridge-path]
+text = '''
+# Discoverying Bridge Paths
+
+Problem: `B1` "just" needs to know how to decide to use `B2` instead of `B3` or
+`B6` 
+
+```
+        -> B2 -> B4 -> C
+A -> B1 
+        -> B3 --> B5 -> D
+        -> B6 /
+```
+
+The method by which bridges figure out which bridge to send a message to is one
+of the most criticial aspects of this library's design.
+
+A bridge can *only* receieve `FN_BROADCAST_NODE` or `FN_REGISTER_SELF` from
+a node on the local network, so it stores those nodes and their `addr` in a
+`local_nodes` hash table. Whenever the bridge streams
+`FN_STREAM_REGISTERD_NODES` to other bridges, it will include its own
+`node_uid` in the `local_bridges` variable.
+
+When a bridge receives `FN_BROADCAST_BRIDGE` or `FN_REGISTER_SELF,bridge=true`
+then it knows that the bridge exists on its local network and stores it's
+`bridge_uid` and `addr` in a hash table. Whenever the bridge streams
+`FN_STREAM_REGISTERED_BRIDGES` to other bridges, it will include it's own
+`bridge_uid` at the end of the `path` for that bridge. We need to prevent
+loops, since local bridges could be appending other local bridges on the path
+and that would be *bad*. To prevent this, the receiving bridge always removes
+local `bridge_uid`s from the `path`. `FN_GET_BRIDGE_PATH` works in a similar
+fashion.
+
+Whenever a bridge registers another bridge, it stores *the earliest local value
+of `path`* as it's "path" to a foreign bridge. It doesn't need to store the
+whole path because all bridges know only the "next hop" to get to any specific
+bridge.
+
+It can store many of these (typically 3 or more) to make sure that if a bridge
+goes down it can still find a bridge. If a local bridge goes down
+`FN_GET_BRIDGE_PATH` can be used to get a new bridge path.
 '''

@@ -24,9 +24,7 @@ text = '''
   compile time.
 - `node_uid`: node unique id which is used for locating nodes to call functions
   on and return data. Defined by application developer at compile time.
-- `network_uid`: the unique network id that all  networks (i.e. tcp/ip, CAN,
-  ZigBee, UART) have assigned to them at compile time. Only the bridges need to
-  know which network is which.
+  `node_uid` cannot equal 0.
 - `fn_id`: the id of a function associated with a particular node (is unique on
   that node). Does not HAVE to be unique across nodes, but it is recommended for
   application developers to make it unique.
