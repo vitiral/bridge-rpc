@@ -113,7 +113,7 @@ might only return data when it becomes available (i.e. for event monitoring).
 An indexed function is a function that keeps track of an internal `cx_id`.
 `cx_id` starts at 1 and is incremented each time it is called. It will ONLY
 execute RPC's with `cx_id` equal to it's internal one (invalid ones get
-`ERR_INVALID_CX`).
+`ERR_INVALID_INDEX`).
 
 The reason for this is simple: imagine you attempt to initiate an RPC to move
 your robot forward 10cm. The call is received but you get no acknoledgement,
@@ -234,25 +234,46 @@ streams (but if the bridge went offline the stream may need to be restarted).
 
 ## Functions about Functions
 ```
-FN_GET_INFO DV {cx_id: u32, fn_id: u16}
-    ![ERR_FN_ID_DNE, ERR_CX_ID_DNE]`:
-```
-Return information about a function with a specific `fn_id` and `cx_id`.
-Since `ACK` messages are allowed to be dropped, this can be used to check if a
-RPC has succeeded if no `ACK` has arrived.
-- `running`: true if the function is currently running.
-- `cached`: a value is available. Both `running` and `cached` can be true
-  for stream functions.
-- `count`: the current `count` of the function if it is stream type. Else
-  `MAX_U32`.
-
-```
 FN_GET_FN_CX_IDS DU {}
     -> {fns: [{init_uid: u16, cx_id: u32}; 16], len: u8}
 ```
 Get a stream (in batches of up to 16) of all `(init_uid, cx_id)` pairs running a
 device's `fn_id`. This tells you how many of a specific function are running
 concurrently.
+
+```
+FN_STREAM_CALLS GI {fn_id: u16, invalid: bool, with_input: bool}
+    -> {cx_id: u32, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of all (future) calls made to this node's `fn_id` as soon as they
+are received.
+- If `invalid=false` then only send calls that result in `ACK`.
+- if `with_input=true` then also send the data received in the input.
+
+> the length `N` of `input` is `input_len`
+
+```
+FN_STREAM_ALL_CALLS GI {
+    only_user: bool,
+    only_valid: bool,
+    only_indexed: bool,
+    only_undropable: bool,
+    with_input: bool,
+}
+-> {cx_id: u32, fn_id: u16, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of ALL (future) calls made to this node as soon as they are
+received.
+- if `only_user=true` then only send user functions (not builtin)
+- if `only_valid=true` then only send calls that result in `ACK`.
+- if `only_indexed=true` then only send calls to indexed functions
+- if `only_undropable=true` then only send calls which have `dropable=false`
+- if `with_input=true` then also send the data received in the input.
+
+This function only accepts metadata of `cx_id=1` to prevent multiple streams to
+the same initiator.
+
+> the length `N` of `input` is `input_len`
 
 ## Node Control Functions
 ```
@@ -341,13 +362,13 @@ Dependent Next Bytes (in this order)
 ### Message Types
 Response Types:
 - `0` `ACK`: acknowledge call `fn_id` of `cx_id` (+type)
-- `1` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
-- `2` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
-- `3` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
-- `4` `STATUS`: return the `status` from call of `GET_STATUS` on `fn_id` of `cx_id`
+- `1` `DONE`: return that the function is done
+- `2` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
+- `3` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
+- `4` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
+- `5` `STATUS`: return status from a call of `GET_STATUS` on `fn_id` of `cx_id`
 
 Reserved:
-- `5`: `--- reserved ---`
 - `6`: `--- reserved ---`
 - `7`: `--- reserved ---`
 - `8`: `--- reserved ---`
@@ -367,9 +388,10 @@ Finish Types:
 The `STATUS` message type is returned after receiving `GET_STATUS`.
 
 ```
-{num_cached: u32, running: bool, cached: bool, err: bool, fn_err: bool}
+{num_cached: u32, init_uid: u16, running: bool, cached: bool, err: bool, fn_err: bool}
 ```
 - `num_cached` is the number of values cached by the `fn_id` at `cx_id`
+- `init_uid` is the initiator's uid  who started the function at this `cx_id`
 - `cached` is whether the value (at `count` if `stream=true`) is cached
 - `running` is whether `fn_id` at `cx_id` is still running
 - `err` is whether the value (at `count` if `stream=true`) is an error
@@ -408,6 +430,7 @@ cleared. These exactly match the bit pattern of their MsgType.
 
 Response:
 - `ERR_UNEXPECTED_ACK`: unexpected/extra `ACK` received
+- `ERR_UNEXPECTED_DONE`: unexpected/extra `DONE` received
 - `ERR_UNEXPECTED_KILLED`: unexpected/extra `KILLED` received
 - `ERR_UNEXPECTED_VALUE`: unexpected/extra `VALUE` (or `stream_value`) received
 - `ERR_UNEXPECTED_ERR`: unexpected/extra `ERR` received
@@ -433,9 +456,12 @@ Finish:
   hasn't gone through discovery yet.
 
 #### Function Errors
-- `ERR_INVALID_CX`: indexed function called with invalid context (data=current
-  `cx_id`)
-- `ERR_FN_RUNNING`: a `CLEAR` was sent while the function was still running.
+- `ERR_INVALID_INDEX`: indexed function called with invalid index
+  (data=current index)
+- `ERR_FN_RUNNING`: `FN_CALL` was sent with the `cx_id` of a running function.
+  (data=`init_uid` of the initiator)
+- `ERR_FN_RAN`: `FN_CALL` was sent with the `cx_id` of a function that already
+  completed.
 - `ERR_FN_MUST_DROP`: `dropable=0` for a function that must drop.
 - `ERR_FN_CANT_STREAM`: `stream=1` on a function that does not support streaming.
 - `ERR_FN_CANT_UNLIMITED_STREAM`: `stream=1,count=MAX_U32` on a function
@@ -449,7 +475,7 @@ Finish:
   doesn't exist.
 
 #### Kill Errors:
-- `ERR_KILL_STOPPED`: kill failed, `fn_id` at `cx_id` is not running
+- `ERR_KILL_DONE`: kill failed, `fn_id` at `cx_id` is already done
 - `ERR_KILL_BLOCKED`: kill failed, `fn_id` at `cx_id` is currently blocked
 - `ERR_UNKILLABLE`: kill failed, `fn_id` at `cx_id` is not killable
 
@@ -490,6 +516,7 @@ can also use them if they make sense for their own functions.
 
 #### Misc
 - `ERR_INTERNAL_ERR`: unknown internal error
+- `ERR_INVALID_CLEAR`: a `CLEAR` was sent while the function was still running.
 
 #### Bridge Errors
 - `ERR_NODE_NOT_BRIDGE`: returned if bridge functions are called on a node

@@ -1,0 +1,158 @@
+[SPC-rpc]
+partof = "REQ-0"
+text = '''
+This defines the entire process for a full RPC (remote procedural call)
+including:
+- [[SPC-rpc-init]]: initializing and acknowleding teh call
+- [[SPC-rpc-value]]: returning the value/error of the call
+- [[SPC-rpc-dropped]]: getting the status/value of the call if it is dropped
+- [[SPC-rpc-finish]]: clearing the cached value/s
+'''
+
+[SPC-rpc-init]
+text = '''
+# Initializing an RPC: Calling Functions
+
+Nodes allow other nodes to run functions on them. An RPC is initialized when a
+node received a `CALL_FN` message type with valid
+`fn_id,cx_id,stream,dropable,count` metadata.
+- Indexed functions require `cx_id` to be equal to their internal `index`.
+  If `cx_id!=index` then they return `ERR_INVALID_INDEX`
+- Some functions are defined to be only dropable. If `dropable=true` for such
+  functions they return `ERR_FN_MUST_DROP`
+- If `stream=true` then `count` determines how much data to request. Some
+  functions cannot stream, or require count to be specific values. See
+  [[SPC-fn-stream]]. 
+
+Immediately after receiving a valid function call, and before actually
+running the function, the node must:
+- put an `ACK` message on the buffer
+- if it is an indexed function, increment its `index`
+'''
+
+[SPC-rpc-value]
+text = '''
+Once the [[SPC-rpc-init]] is complete on the executor, the function shall be run
+on the node. When the function has finished it shall send either a `VALUE` or an
+`ERR` message to the initiator.
+
+If `stream=true` then the values/errors are returned as defined in
+[[SPC-stream]]
+
+The returned `ERR` values are functions specific.
+'''
+
+[SPC-rpc-dropped]
+text = '''
+The Bridge Protocol has a wide range of flexibility for data robustness ranging
+from values never being cleared to them being cleared immediately.
+
+If `dropable=true` then the value, error and context is dropped *immediately*
+after sending all values and errors. Further calls to either `GET_STATUS` or
+`GET_VALUE` will result in `ERR_UNEXPECTED_*`.
+
+If `dropable=false` then the timeout/event that causes the value, error and
+context to be dropped are implementation specific. While the value is cached,
+it can be retrieved through:
+- `GET_STATUS` returns the `STATUS` of the `fn_id` at `cx_id`, including whether
+  it is still running, whether the value at `count` (if `stream=true`) is cached
+  and how many total values are cached from that function.
+- `GET_VALUE` re-sends the `VALUE` of the completed function at `cx_id`.
+- when `stream=true` the behavior is slightly modified. See [[SPC-stream]]
+
+# Robustness
+It is imporant to point out how this completes the specification for robustness.
+We will look at both drop-able and undrop-able values as well as indexed
+functions.
+
+## Handling Dropped Values when `dropable=true`
+Dropable values are the easiest for seeing the use case of robustness. There
+can be nothing more robust than data you don't care about loosing! Dropable
+values include things like ping or streaming data that needs to be reacted to in
+real time -- if value is lost, just request a more recent one.
+
+If an initiator starts a dropable RPC and doesn't get a value it simply sends
+the request again. If the function is already running it will just return
+`ERR_FN_RUNNING` and it should get the value eventually.
+
+## Handling Dropped Values when `dropable=false`
+Undropable values are what one thinks about when they think of "robustness".
+From the functions perspective "undropable" really means "unclearable". When a
+function is "undropable" it will be kept in the node's cached for an application
+specific amount of time -- potentially forever -- until the `CLEAR` message is
+sent to it.
+
+If an initiator calls an undropable function and receives no `ACK` or `VALUE`
+within an application specific time frame it can:
+- simply call it again. If the function is running or has finished it will
+  receive `ERR_FN_RUNNING` or `ERR_FN_RAN`.
+- send `GET_STATUS` to see if the function has started. If it hasn't it will
+  receive `ERR_UNEXPECTED_GET_STATUS` and will have to re-send the function.
+- send `GET_VALUE` to try and get the function's data. Note that if `VALUE` is
+  large this may saturate the network as the `VALUE` may already be in-flight.
+
+If an executor returns a `VALUE` on an undropable function but does not receive
+the `CLEAR` within an application defined time it can:
+- simply send the value again, especially if the value is small.
+- send `DONE` which will result in `GET_VALUE` being sent to re-request the
+  value 
+- if the `CLEAR` message had previously been sent (but dropped), these messages
+  will result in `ERR_UNEXPECTED_DONE` since the context will have already been
+  cleared on the initiator. This error will be interpreted as a `CLEAR`.
+
+## Indexed Functions
+Indexed functions are the final piece of the robustness puzzle. They guarantee
+that function calls (on indexed functions) maintain:
+
+- sequential consistency: calls will be run in the order that they were sent.
+- atomicity: race conditions are impossible.
+- reliability: a function cannot accidentally be called twice (or more) because
+  of multiple `FN_CALL` messages.
+
+Indexed functions are intended for things you really don't want to accidentally
+call twice such as "drive forward 10 meters" or "delete a specific file" or
+"overwrite this value in the database". 
+
+Indexed functions make it impossible to *acidentally* call a function twice. If
+you try to call a function and receive `ERR_INVALID_INDEX` it can mean several
+things depending on `init_uid` of `GET_STATUS`:
+- if `init_uid` is your id, then you successfully called the function on a
+  previous call (yay!).
+- if `init_uid` is NOT your id, then a *different node* called the function.
+  Your application should probably try to do some communication to figure out
+  what's going on and what to do next.
+- if the context was cleared (so `init_uid` is unknown from `GET_STATUS`), the
+  information could still have been obtained if values from `FN_STREAM_CALLS` or
+  `FN_STREAM_ALL_CALLS` were stored in an application specific manner for query
+  (only the functions, not the database, are supported by this library).
+'''
+
+[SPC-rpc-finish]
+text = '''
+When an initiator gets a value from the executor and `dropable=false` it should
+notify the executor that the data can be cleared.
+- `CLEAR` shall be sent when a `VALUE`, `ERR` or `DONE` is received and
+  `dropable=false`
+    - if the function is still running it returns `ERR_INVALID_CLEAR` which is a
+      critical error if CLEAR was sent only once.
+    - if the context has been cleared, the executor will return
+      `ERR_UNEXPECTED_CLEAR` which should be ignored.
+    - if `stream=false` this signals the function as being done and ALL data is
+      cleared (even for streaming functions).
+    - if `stream=true` this signals data at `count` being done. The function
+      will continue (until done and all stream data is cleared) but that `count`
+      of the stream will be cleared.
+- A `CLEAR` with `stream=false` will result in all data being cleared, even if
+  the function is a stream type.
+
+When an initiator (or monitor) wants to kill a running process it uses the
+`KILL` message. After doing so:
+- the executor must return `KILLED` (or a kill-related err).
+- If the function was already killed, `KILL` will return `ERR_KILL_DONE`,
+  which should be interpreted as `KILLED`
+- If the context has been cleared, `KILL` will return `ERR_UNEXPECTED_KILL`
+  which should be interpeted as `KILLED`
+- if `KILL,dropable=true` then the function will be killed AND data will be
+  cleared.
+- `stream` must always be false for `KILL` messages.
+'''

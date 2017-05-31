@@ -1,0 +1,21 @@
+
+[SPC-stream]
+text = '''
+# TODO: dumping ground for stream stuff
+
+If `stream=true` then the values/errors are returned as defined in
+[[SPC-stream]]
+- The function shall send multiple values/errors as defined by [[SPC-stream]].
+- If a stream function returns an `ERR` with `stream=false` then that signals
+  that the error has caused the function to halt.
+- For both `CALL_FN` and `GET_VALUE` if `stream=true` then an `ERR` can be returned
+  with:
+    - `stream=false`: declares that the function ITSELF failed and there will be
+      no more values.
+    - `stream=true`: declares that there was an error retrieving specific data
+      at `count`.
+
+// - `GET_VALUE` re-sends the `VALUE` of the completed function at `cx_id`.
+    - if `stream=true`, `count` determines *which* count to get.
+
+'''
