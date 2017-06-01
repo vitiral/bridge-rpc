@@ -65,7 +65,6 @@ impl Baz {
 ```
 '''
 
-
 [SPC-arch-state-init]
 partof = "SPC-art-state"
 text = '''
@@ -120,22 +119,44 @@ Executor is an enum value which goes inside [[SPC-arch-state]] and is used for
 `Context::state` when executing a function locally.
 
 It uses `RpcFn` [[SPC-arch-fn]] to actually execute code.
-- Received: data was received and has not been validated/cached
 
-- Running: function is currently running and not using any data in the cache
-- ValueStreamRunning {data: &mut Data}: function is running and a stream value is
+Single Value Functions:
+- `Received{data: &mut Data}`: data was received and has not been validated/cached
+- `BlockedData{data: &mut Data}`: data was received but function is blocked
+  from moving data
+
+- `Running`: function is currently running
+- `Blocked`: function is currently blocked from starting
+
+- `Queued`: function is done and needs to get `&mut Data`
+- `ErrQueued{err: ErrType}`: function has an error and needs to get
+  `&mut Data`
+
+- `Value(data: &mut Data)`: function is done and returned a value
+- `Err{err: ErrType, data: &mut Data}`: function is done and returned an error
+
+Stream Value Functions
+- `ReceivedStream{count: u16, data: &mut Data}`: data was received and has not
+  been validated/cached
+- `BlockedDataStream{count: u16, data: &mut Data}`: data was received but
+  function is blocked from moving data
+
+- `StreamQueued{count: u16}`: function is running and a stream value is queued and needs 
+  `&mut Data`.
+- `StreamQueuedDone{count: u16}`: ditto but done
+- `ErrStreamQueued{err: ErrType, count: u16}`: function is
+  running and a stream item had an error and needs `&mut Data`
+- `ErrStreamQueuedDone{err: ErrType, count: u16}`: ditto but done
+
+- `StreamRunning`: function is currently running
+- `StreamBlocked`: function is currently blocked
+- `ValueStreamRunning {data: &mut Data}`: function is running and a stream value is
   available.
-- ErrStreamRunning{err: ErrType, count: u16, data: &mut Data}: function is
+- `ErrStreamRunning{err: ErrType, count: u16, data: &mut Data}`: function is
   running and a stream item had an error.
 
-- Queued: function is done and needs to get `&mut Data`
-- ValueStreamQueued{count: u16}: function is running and a stream value is queued.
-- ErrQueued{err: ErrType, count: u16}: function has an error and needs to get `&mut Data`
-- ErrStreamQueued{err: ErrType, count: u16}: function is
-  running and a stream item had an error and needs `&mut Data`
-
-- Value(data: &mut Data): function is done and returned a value
-- Err{err: ErrType, data: &mut Data}: function is done and returned an error
-- ErrStream{err: ErrType, count: u16, data: &mut Data}: stream function is done
+- `ErrStream{err: ErrType, count: u16, data: &mut Data}`: stream function is done
   and returned an error.
+- `ValueStreamDone{count: u16, data: &mut Data}`: stream function is done and
+  returned data. 
 '''
