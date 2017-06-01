@@ -123,8 +123,7 @@ When a `fn_id` is called, the scheduler finds the correct
 function from Node::user_fns()` clones the `RpcFn` it finds
 there and assigns the context to it.
 
-The procedure is then called (&mut self), which uses the assigned
-context to perform the state machine.
+The attached methods are then called as dictated by the type system.
 '''
 
 [SPC-arch-node]
