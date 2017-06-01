@@ -6,6 +6,8 @@ procedural call framework that can be run on microcontrollers and contains
 
 See the [README.md][1] for more information about the basic requirements.
 
+See [[SPC-0]] for the specification of the protocol.
+
 [1]: https://github.com/vitiral/bridge-rpc/blob/master/README.md
 '''
 
@@ -42,4 +44,9 @@ text = '''
 [SPC-0-done]
 partof = "REQ-0-definitions"
 done = "by definition"
+
+[SPC-0]
+text = '''
+
+'''
 

@@ -12,7 +12,7 @@ A node is a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
 that can communicate on one or more networks.
 
 It participates in the cluster by declaring functions. Functions are just a
-`fn_id` associated with a routine which performs an entire RPC when it is
+`fn_id` associated with a procedure which performs an entire RPC when it is
 executed using `CALL_FN`.
 
 The declared functions can be called by any other node on the network by
