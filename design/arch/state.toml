@@ -1,0 +1,141 @@
+[SPC-arch-state]
+text = '''
+# RPC State
+The `RpcState` object is the primary "state machine" of the `RpcContext`.
+
+```
+/// The state can be either "initiator" or "executor"
+enum RpcState {
+    Initiator(InitiatorState),
+    Executor(ExecutorState),
+}
+
+enum InitiatorState {
+    Ready(initiator::Ready),
+    CalledWaiting(initiator::CalledWaiting),
+    ... etc
+}
+
+enum ExecutorState {
+    ... TODO
+}
+```
+
+These are also defined for states
+```
+/// Data just holds the payload
+struct Data {
+    payload: [u8; 254],
+    masked_len: u16,  # must be masked with 0x7FFF
+}
+```
+
+These are defined in:
+- [[SPC-arch-init]]
+- [[SPC-arch-exec]]
+
+It is made up of enums of enums of structs. Each struct has methods on it
+for converting to the next stage. Similar to:
+```
+struct Context {
+    x: u16,
+}
+
+struct Bar {
+    cx: Context,
+}
+
+struct Baz {
+    cx: Context,
+}
+
+enum State {
+    Bar(Bar),
+    Baz(Baz),
+}
+
+
+impl Baz {
+    fn process_stuff(self) -> State {
+        // do some stuff, note that the state
+        // could be anything here
+        State::Bar(Bar{ cx: self.cx })
+    }
+}
+```
+'''
+
+
+[SPC-arch-state-init]
+partof = "SPC-art-state"
+text = '''
+# Initiator Structs
+Initiator is an enum value which goes inside [[SPC-arch-state]] and is used for the
+the `Context::state` when initiating an RPC on another node.
+
+The initiator state is simply structs which exist under module `initiator.rs` and
+have the signature `{cx: Context, ...}`
+
+Single Value Path: `ExecutorState::Single`
+- Ready {data: &mut Data} - the function is initialized and ready to be called
+
+- CalledWaiting: `FN_CALL` has been sent, waiting for response
+    response
+- KillWaiting: `KILL` has been sent, waiting for response
+
+- Acked: recieved ACK from `FN_CALL`
+- KillAcked: recieved ACK from `KILL`
+
+- Done: the function is done but value has not been receieved
+- ValueDone{data: &mut Data}: received a single value
+- ErrDone{err: ErrType, data: &mut Data}: received an ERR
+- Killed: Kill is complete
+
+Stream Values Path: `ExecutorState::Stream`
+- ReadyStream{data: &mut Data} - the stream function is initialized and ready to be called
+- CalledStreamWaiting: `FN_CALL` of type stream has been sent, waiting for first value
+- KillStreamWaiting: `KILL` has been sent to a stream, waiting for a response
+
+- AckedStream: recieved ACK from `FN_CALL`
+- KillAckedStream: recieved ACK from `KILL`
+
+- ValueStreamRunning{count: u16, data: &mut Data}: received a value from the
+  stream, function is still running 
+
+- StreamDone{count: 16}: the stream is done but it is possible not all values
+  have been received
+- ValueStreamDone{count: u16, data: &mut Data}: received a value from the
+  stream while it is done (not necessarily final value).
+- ErrStream{err: ErrType, count: u16, data: &mut Data}: received an ERR on an
+  index of stream
+- ErrStreamDone{err: ErrType, count: u16, data: &mut Data}: received an ERR
+  from a stream that is done (not necessarily final value).
+- KilledStream: received `KILLED`
+'''
+
+[SPC-arch-state-exec]
+text = '''
+# Executor Structs
+Executor is an enum value which goes inside [[SPC-arch-state]] and is used for
+`Context::state` when executing a function locally.
+
+It uses `RpcFn` [[SPC-arch-fn]] to actually execute code.
+- Received: data was received and has not been validated/cached
+
+- Running: function is currently running and not using any data in the cache
+- ValueStreamRunning {data: &mut Data}: function is running and a stream value is
+  available.
+- ErrStreamRunning{err: ErrType, count: u16, data: &mut Data}: function is
+  running and a stream item had an error.
+
+- Queued: function is done and needs to get `&mut Data`
+- ValueStreamQueued{count: u16}: function is running and a stream value is queued.
+- ErrQueued{err: ErrType, count: u16}: function has an error and needs to get `&mut Data`
+- ErrStreamQueued{err: ErrType, count: u16}: function is
+  running and a stream item had an error and needs `&mut Data`
+
+- Value(data: &mut Data): function is done and returned a value
+- Err{err: ErrType, data: &mut Data}: function is done and returned an error
+- ErrStream{err: ErrType, count: u16, data: &mut Data}: stream function is done
+  and returned an error.
+'''

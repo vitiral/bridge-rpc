@@ -1,0 +1,146 @@
+[SPC-arch]
+partof = "SPC-0"
+text = '''
+# Software Architecture
+
+The software implementation shall be split up into the following layers
+
+```
+
+            constants: msg, ack, err, etc token definitions
+
+--------------------------------------------------------------------------------
+
+    logic: rust state machine implementing typed event transitions and core
+       data types
+
+--------------------------------------------------------------------------------
+
+    network protocol: implementation for specific network protocols
+
+--------------------------------------------------------------------------------
+    
+    device definition: implementation for a specific board type, etc
+```
+
+Only the constants and logic are defined in this specification. Other modules
+define specific network and device implementations.
+
+- [[SPC-arch-constants]]: language agnostic definition of constants
+'''
+
+[SPC-arch-constants]
+text = '''
+Constants shall be defined in the yaml format so that scripts can be writen
+to create constant files (with documentation) for any langauge.
+
+File settings look like:
+
+```
+- "FILE_SETTINGS":
+    - default_type: "CONST_RUST_TYPE"  # [&str, u8, u16, u32, [u16; 8], etc]
+```
+
+A constant definition looks like:
+```
+- CONST_NAME:
+    type: "CONST_RUST_TYPE"
+    value: CONST_VALUE
+    doc: "document the const here"
+```
+
+`type` is optional if using `default_type`
+
+A documentation line looks like:
+```
+-
+    type: "DOC_TYPE"  # {"code", "module"}
+    doc: "the documentation for the module/code"
+```
+
+Example `err.yaml`:
+```
+- FILE_SETTINGS:
+    - default_type: u16
+
+# documentation line/s
+- 
+    type: "module"
+    doc: "ERR tokens"
+
+# declaring a constant
+- ERR_UNEXPECTED_ACK:
+    value: 0x00
+    doc: 
+        unexpected/extra `ACK` received
+```
+'''
+
+[SPC-arch-cx]
+text = '''
+# RPC Context
+
+Whenever a function is called or executed, it creates a context.
+The function context is the data structure that stores the data
+and state relevant to function execution.
+
+```
+#[repr(packed)]
+struct Context {
+    cx_id: u32,
+    fn_id: u16,
+    other_uid: u16,  # the other node's uid
+    msg_type: MsgType,
+}
+
+/// MsgType is the type of message
+enum MsgType {
+    FnCall,
+    FnCallStream(count: u16),
+    ...
+}
+```
+
+
+'''
+
+
+[SPC-arch-fn]
+text = '''
+Each function shall be defined:
+```
+struct RpcFn<'context> {
+    /// context for this function RPC
+    context: &'context mut RpcContext,
+
+    /// start the procedure on the node
+    start: Fn(rpc_fn: &mut RpcContext),
+
+    /// poll whether the procedure is done (context will be mutated
+    /// by the function
+    poll: Fn(rpc_fn: &mut RpcContext),
+}
+```
+
+When a `fn_id` is called, the scheduler finds the correct 
+function from Node::user_fns()` clones the `RpcFn` it finds
+there and assigns the context to it.
+
+the procedure is then called (&mut self). The procedure mutates
+'''
+
+[SPC-arch-node]
+text = '''
+There shall be a `Node` trait which implements the following values:
+- `cluster_uid()`: return the uid of the cluster
+- `node_uid()`: return the uid of the node
+- `user_fns()`: return a map of user `fn_id`s to procedures. See [[SPC-arch-fn]]
+'''
+
+[SPC-arch-bridge]
+text = '''
+There shall be a `Bridge` Trait. The user must implement the following methods:
+- `node()`: returns a static reference to the node struct. See [[SPC-arch-node]]
+
+The `Bridge` definition simply declares that the node is a bridge
+'''

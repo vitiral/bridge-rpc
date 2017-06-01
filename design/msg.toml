@@ -94,8 +94,7 @@ Some requests (i.e. `GET_VALUE`) are requesting the return of a value only *if i
 already exists*. Therefore these do not return an ACK, they just return the
 value.
 
-- `ACK_FN`: acknowledge function call (call in progress)
-- `ACK_CLEAR`: acknowledge clear command
+- `ACK_FN_CALL`: acknowledge function call (call in progress)
 - `ACK_KILL`: acknowledge a kill command (kill not yet done)
 '''
 
