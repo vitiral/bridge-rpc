@@ -125,7 +125,6 @@ Single Value Functions:
 - `BlockedData{data: &mut Data}`: data was received but function is blocked
   from moving data
 
-- `Running`: function is currently running
 - `Blocked`: function is currently blocked from starting
 
 - `Queued`: function is done and needs to get `&mut Data`
