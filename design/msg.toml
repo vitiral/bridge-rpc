@@ -1,5 +1,5 @@
 [SPC-msg]
-partof = "REQ-0"
+partof = "SPC-0"
 text = '''
 Messages are the way in which nodes communicate with other nodes, including
 through bridges. It is the data returned from all transactions on all network

@@ -1,5 +1,5 @@
 [SPC-stream]
-partof = "REQ-0"
+partof = "SPC-0"
 text = '''
 # TODO: dumping ground for stream stuff
 

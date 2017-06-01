@@ -11,23 +11,41 @@ See [[SPC-0]] for the specification of the protocol.
 [1]: https://github.com/vitiral/bridge-rpc/blob/master/README.md
 '''
 
-[REQ-0-definitions]
+[SPC-0]
 text = '''
+The protocol specification is split up into several modules
+- [[SPC-0-definitions]]: definition of terms
+- [[SPC-cluster]]: the definition of a cluster
+- [[SPC-node]]: the definition of a node
+- [[SPC-bridge]]: the definition of a bridge
+- [[SPC-rpc]]: specification of the process of an RPC's life
+- [[SPC-msg]]: specification of the message "packet" including it's type and
+  layout.
+- [[SPC-stream]]: TODO: move to SPC-msg-stream
+- [[SPC-fn]]: defined builtin functions
+- [[SPC-err]]: defined builtin errors
+- [[SPC-arch]]: the software achitecture. How the software addresses the spec.
+'''
+
+[SPC-0-definitions]
+text = '''
+- `cluster` a set of nodes that share the same `cluster_uid` and can communicate
+  through bridges. See [[SPC-cluster]]
 - `node`: a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
-  that can communicate on one or more networks.
+  that can communicate on one or more networks. See [[SPC-node]]
 - `bridge`: a node that other nodes can register themselves on that can talk on
   at least one network and knows the `network_uid` for all networks.
-  Can act as a "bridge" between networks.
+  Can act as a "bridge" between networks. See [[SPC-bridge]]
 - `function`: a declared method with a `fn_id` that begins the RPC process on
   a node.
 - `RPC`: a single remote procedural call, ack, return value, kill clear, etc.
   Can be thought of as all communication and execution that happens for a
-  unique `(init_uid,exec_uid,fn_id,cx_id)` tuple.
+  unique `(init_uid,exec_uid,fn_id,cx_id)` tuple. See [[SPC-rpc]]
 - `cluster_uid`: cluster unique id which represents a collection of nodes and
-  bridges with the same `cluster_uid`. Defined by the application developer at
-  compile time.
+  bridges with the same `cluster_uid`. **Defined at compile time** by
+  application developer.
 - `node_uid`: node unique id which is used for locating nodes to call functions
-  on and return data. Defined by application developer at compile time.
+  on and return data. **Defined at compile time** by application developer.
   `node_uid` cannot equal 0.
 - `fn_id`: the id of a function associated with a particular node (is unique on
   that node). Does not HAVE to be unique across nodes, but it is recommended for
@@ -40,13 +58,4 @@ text = '''
 - `value`: the value returned by a non-streaming function call.
 - `stream_value`: one of `count` values returned by a streaming functionc call.
 '''
-
-[SPC-0-done]
-partof = "REQ-0-definitions"
 done = "by definition"
-
-[SPC-0]
-text = '''
-
-'''
-

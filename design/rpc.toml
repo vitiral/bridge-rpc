@@ -1,5 +1,5 @@
 [SPC-rpc]
-partof = "REQ-0"
+partof = "SPC-0"
 text = '''
 This defines the entire process for a full RPC (remote procedural call)
 including:
