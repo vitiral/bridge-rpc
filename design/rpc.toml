@@ -16,7 +16,7 @@ from values persisting indefinitely to them being cleared immediately.
 
 If the function type is `dropable=true` then the value, error and context is
 dropped *immediately* after sending all values and errors. Further calls to
-either `GET_STATUS` or `GET_VALUE` will result in [[ERR_UNEXPECTED]].
+either `GET_STATUS` or `GET_VALUE` will result in [[ERR_UNEXPECTED_]].
 
 If `dropable=false` then the timeout/event that causes the value, error and
 context to be dropped are implementation specific. While the value is cached,
@@ -74,7 +74,7 @@ When an initiator gets a value from the executor and `dropable=false` it should
 notify the executor that the data can be cleared.
 - `CLEAR` shall be sent when a `VALUE`, `ERR` or `DONE` is received and
   `dropable=false`
-    - if the function is still running it returns [[ERR_FN]]_INVALID_CLEAR
+    - if the function is still running it returns [[ERR_FN_]]INVALID_CLEAR
       which is a critical error if CLEAR was sent only once.
     - if the context has been cleared, the executor will return
       `ERR_UNEXPECTED_CLEAR` which should be ignored.
@@ -125,7 +125,7 @@ Indexed functions work by:
 
 Indexed functions make it impossible to *acidentally* call a function twice (or
 more). If `cx_id` does not equal the node's internal index it will return
-[[SPC-ERR_FN]]_INVALID_INDEX. This can mean it can mean several things depending on
+[[SPC-ERR_FN_]]INVALID_INDEX. This can mean it can mean several things depending on
 `init_uid` of `GET_STATUS`:
 - if `init_uid` is your `node_id`, then you successfully called the function on a
   previous call (yay!).
@@ -152,7 +152,7 @@ node received a `CALL_FN` message type with valid metadata.
 - Indexed functions require `cx_id` to be equal to their internal `index`.
   If `cx_id != index` then they return `ERR_INVALID_INDEX`
 - Some functions are defined to be only dropable. If `dropable=true` for such
-  functions they return `ERR_FN_MUST_DROP`
+  functions they return [[ERR_FN_]]`MUST_DROP`
 - If `stream=true` then `count` determines how much data to request. Some
   functions cannot stream, or require count to be specific values. See
   [[SPC-stream]]. 

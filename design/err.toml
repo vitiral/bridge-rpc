@@ -11,7 +11,7 @@ These are the error types.
 - `x1000` - `xFFFF`: open for user defined errors
 '''
 
-[SPC-ERR_UNEXPECTED]
+[SPC-ERR_UNEXPECTED_]
 partof = 'SPC-err'
 text = '''
 #### Unexpected Message Errors:
@@ -36,7 +36,7 @@ Finish:
 - `ERR_UNEXPECTED_CLEAR`: unexpected/extra `CLEAR` received
 '''
 
-[SPC-ERR_CORRUPT]
+[SPC-ERR_CORRUPT_]
 partof = 'SPC-err'
 text = '''
 #### Validation Errors
@@ -44,7 +44,7 @@ text = '''
 - `ERR_CORRUPT_MESSAGE`: `validation=1` and the message failed the CRC check
 '''
 
-[SPC-ERR_BRIDGE]
+[SPC-ERR_BRIDGE_]
 partof = 'SPC-err'
 text = '''
 #### Bridge Node Protocol Errors
@@ -58,7 +58,7 @@ text = '''
 - `ERR_BRIDGE_TYPE`: bridge function called on a node that is not a bridge.
 '''
 
-[SPC-ERR_FN]
+[SPC-ERR_FN_]
 partof = 'SPC-err'
 text = '''
 #### Function Errors
@@ -83,7 +83,7 @@ text = '''
   running. 
 '''
 
-[SPC-ERR_KILL]
+[SPC-ERR_KILL_]
 partof = 'SPC-err'
 text = '''
 #### Kill Errors:
@@ -92,7 +92,7 @@ text = '''
 - `ERR_KILL_INVALID`: kill failed, `fn_id` at `cx_id` is not killable
 '''
 
-[SPC-ERR_INVALID]
+[SPC-ERR_INVALID_]
 partof = 'SPC-err'
 text = '''
 #### Invalid Data Errors:
@@ -104,7 +104,7 @@ text = '''
 - `ERR_INVALID_STATUS_COUNT`: invalid count in `GET_STATUS` message.
 '''
 
-[SPC-ERR_NET]
+[SPC-ERR_NET_]
 partof = 'SPC-err'
 text = '''
 #### Network Errors
@@ -115,7 +115,7 @@ throttled. Bridges *can* return these.
 - `ERR_NETWORK_FLOODED`: returned if network is up but too flooded for transfer.
 '''
 
-[SPC-ERR_MEM]
+[SPC-ERR_MEM_]
 partof = 'SPC-err'
 text = '''
 #### Memory Errors: `1110 XXXX`
@@ -125,7 +125,7 @@ Device memory errors. User programs can return these as well.
 - `ERR_MEM_HEAP_FULL`: device heap is too full for msg
 '''
 
-[SPC-ERR_RPC]
+[SPC-ERR_RPC_]
 partof = 'SPC-err'
 text = '''
 ## RPC Errors:
@@ -136,7 +136,7 @@ Internal errors about the bridge-rpc library limits.
   never be hit
 '''
 
-[SPC-ERR_LOG]
+[SPC-ERR_LOG_]
 partof = 'SPC-err'
 text = '''
 ## Log Errors

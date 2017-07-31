@@ -2,7 +2,12 @@
 partof = "SPC-0"
 text = '''
 Messages are the way in which nodes communicate with other nodes, including
-through bridges. It is the data returned from all transactions on all network
+through bridges.
+
+Messages are the core datatype of bridge-rpc. For information on how
+messages are tied together, see [[SPC-rpc]].
+
+The Message is the data returned from all transactions on all network
 protocols. It must be able to define the following characteristics:
 - metadata about the message:
     - whether this is an error, RPC, a single-value, a stream-value, etc
@@ -19,10 +24,10 @@ protocols. It must be able to define the following characteristics:
       be specified in the message. If it is sync, then `index == cx_id`.
 
 The message is defined in the following specs:
-- [[SPC-msg-ack]]: how ack's work, different than many protocols.
 - [[SPC-msg-layout]]: the data layout of the message
 - [[SPC-msg-type]]: types of messages
 - [[SPC-msg-status]]: the status type
+- [[SPC-msg-ack]]: how ack works
 '''
 
 [SPC-msg-ack]
@@ -84,10 +89,10 @@ The [[SPC-msg-type]] = `STATUS` is returned after receiving [[SPC-msg-type]] =
 - `err` is whether the value (at `count` if `stream=true`) is an error
 - `fn_err` is whether the whole function had an error (regardless of stream)
 
-`GET_STATUS` can also return the following `ERR`:
-- [[ERR_UNEXPECTED]]`_GET_STATUS`
-- [[ERR_FN]]`_ID_DNE`
-- [[ERR_INVALID]]`_STATUS_COUNT`
+`GET_STATUS` can also return the following errors ([[SPC-err]]):
+- [[ERR_UNEXPECTED_]]`GET_STATUS`
+- [[ERR_FN_]]`ID_DNE`
+- [[ERR_INVALID_]]`STATUS_COUNT`
 '''
 
 [SPC-msg-type]
