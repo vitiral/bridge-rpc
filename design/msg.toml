@@ -17,9 +17,9 @@ protocols. It must be able to define the following characteristics:
 - function id (`fn_id`): the id of the function being called on the node.
     - whether this is an `sync` or `async` function call does NOT need to
       be specified in the message. If it is sync, then `index == cx_id`.
-    - Note that `fn_id`'s can mean different things on different nodes.
 
 The message is defined in the following specs:
+- [[SPC-msg-ack]]: how ack's work, different than many protocols.
 - [[SPC-msg-layout]]: the data layout of the message
 - [[SPC-msg-type]]: types of messages
 - [[SPC-msg-status]]: the status type
@@ -72,8 +72,8 @@ Dependent Next Bytes (in this order)
 [SPC-msg-status]
 text = '''
 ## Status Type
-The `STATUS` type is returned after receiving `GET_STATUS`. It contains a payload
-of the following type:
+The [[SPC-msg-type]] = `STATUS` is returned after receiving [[SPC-msg-type]] =
+`GET_STATUS`. It contains a payload of the following type:
 ```
 {num_cached: u32, init_uid: u16, running: bool, cached: bool, err: bool, fn_err: bool}
 ```
@@ -85,21 +85,22 @@ of the following type:
 - `fn_err` is whether the whole function had an error (regardless of stream)
 
 `GET_STATUS` can also return the following `ERR`:
-- `ERR_UNEXPECTED_GET_STATUS`
-- `ERR_FN_ID_DNE`
-- `ERR_INVALID_STATUS_COUNT`
+- [[ERR_UNEXPECTED]]`_GET_STATUS`
+- [[ERR_FN]]`_ID_DNE`
+- [[ERR_INVALID]]`_STATUS_COUNT`
 '''
 
 [SPC-msg-type]
 text = '''
 ### Message Types (`msg_type`)
 Response Types:
-- `0` `ACK`: acknowledge call `fn_id` of `cx_id` (+type)
+- `0` `ACK`: acknowledge call `fn_id` of `cx_id` (+type). See [[SPC-msg-ack]]
 - `1` `DONE`: return that the function is done
 - `2` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
-- `3` `VALUE`: return value from call `fn_id` of `cx_id` (+payload)
-- `4` `ERR`: return error from a call `fn_id` of `cx_id` (+type&payload)
-- `5` `STATUS`: return status from a call of `GET_STATUS` on `fn_id` of `cx_id`
+- `3` `VALUE`: return value/item from call `fn_id,cx_id,[count]` (+payload)
+- `4` `ERR`: return error from a call `fn_id,cx_id` (+type&payload)
+- `5` `STATUS`: returned status, see [[SPC-msg-status]]
+    
 
 Not Used:
 - `6`: `--- reserved ---`
@@ -110,10 +111,10 @@ Not Used:
 
 Request Types:
 - `B` `CALL_FN`: call function `fn_id` using `cx_id` (+payload)
-- `C` `GET_VALUE`: get value/stream of already called function `fn_id` of `cx_id`
-- `D` `GET_STATUS`: return `status` object of the `fn_id` of `cx_id`.
+- `C` `GET_VALUE`: get value/stream of already called function `fn_id,cx_id`
+- `D` `GET_STATUS`: get `status` object of the `fn_id,cx_id`. See [[SPC-msg-status]]
 
 Finish Types:
-- `E` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
-- `F` `CLEAR`: clear cache of `fn_id` using `cx_id`
+- `E` `KILL`: kill running function/stream `fn_id,cx_id`
+- `F` `CLEAR`: clear cache of `fn_id,cx_id`
 '''

@@ -3,7 +3,7 @@ partof = "SPC-0"
 text = '''
 This defines the entire process for a full RPC (remote procedural call)
 including:
-- [[SPC-rpc-init]]: initializing and acknowleding teh call
+- [[SPC-rpc-init]]: initializing and acknowleding the call
 - [[SPC-rpc-value]]: returning the value/error of the call
 - [[SPC-rpc-dropped]]: getting the status/value of the call if it is dropped
 - [[SPC-rpc-finish]]: clearing the cached value/s
@@ -12,11 +12,11 @@ including:
 [SPC-rpc-dropped]
 text = '''
 The Bridge Protocol has a wide range of flexibility for data robustness ranging
-from values never being cleared to them being cleared immediately.
+from values persisting indefinitely to them being cleared immediately.
 
-If `dropable=true` then the value, error and context is dropped *immediately*
-after sending all values and errors. Further calls to either `GET_STATUS` or
-`GET_VALUE` will result in `ERR_UNEXPECTED_*`.
+If the function type is `dropable=true` then the value, error and context is
+dropped *immediately* after sending all values and errors. Further calls to
+either `GET_STATUS` or `GET_VALUE` will result in [[ERR_UNEXPECTED]].
 
 If `dropable=false` then the timeout/event that causes the value, error and
 context to be dropped are implementation specific. While the value is cached,
