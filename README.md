@@ -3,19 +3,19 @@
 > **This library is in the design phase.**
 
 Bridge is a protocol designed to allow a system of different devices, to
-communicate with each other and issue commands through (optionally) guaranteed
-unique remote procedural calls. It allows inter-network communication through the
+communicate with each other and issue commands through lightweight and robust
+remote procedural calls. It allows inter-network communication through the
 concept of "bridges". Both nodes and bridges can be highly resource constrained
 devices (such as microcontrollers). Intended supported networks include tcp/ip,
 UART, CAN and ZigBee.
 
 The Bridge Protocol has the following requirements:
-- lightweight: both nodes and bridges can be run on microcontrollers with as
-  little as 4k RAM and no memory allocation.
+- lightweight: both nodes and bridges can be run completely on the stack of
+  microcontrollers with as little as 4k RAM
 - simple: The entire protocol is governed by a small set of easy to
-  implement rules and there are only two kinds of devices: nodes and bridges.
-  Bridges are just nodes which also store a register of existing nodes and pass
-  data along to its destination.
+  implement rules that are defined by the rust typsestem. There are only two
+  kinds of devices: nodes and bridges. Bridges are just nodes which also store a
+  register of existing nodes and pass data along to its destination.
 - network agnostic: can be run on any network that is masterless and has the
   ability to broadcast (tcp/ip, UART, CAN, etc).
 - bridged: enables seamless communication between different networks via
@@ -33,10 +33,10 @@ The Bridge Protocol has the following requirements:
     - functions can have user-defined events of when they drop values
       (i.e. timeout, buffer fullness, etc)
     - functions can store an index and only run when the index matches the
-      `cx_id` given in the RPC, guaranteing that functions cannot be run
-      twice accidentally.
+      `cx_id` of the RPC, guaranteing that functions cannot be run twice
+      accidentally.
 
-The library will be split up into several crates:
+The library will be split up into several libraries/crates:
 - bridge-constants: provides generated constants for multiple languages
 - bridge-logic-rs: contains core rust data types and logic handlers to implement
   the protocol.

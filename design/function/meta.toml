@@ -1,0 +1,68 @@
+
+[SPC-fn-meta]
+text = '''
+## Functions about Functions
+These are functions for getting information about functions running on a node.
+These are mostly used for diagnostics and logging but can also be used
+by an external application to ensure data deduplication.
+
+- [[SPC-FN_GET_FN_CX_IDS]]: get all currently running functions.
+- [[SPC-FN_STREAM_CALLS]]: get a stream of all calls made to a
+    specific `fn_id`
+- [[SPC-FN_STREAM_ALL_CALLS]]: stream all calls made to a node
+    (with some filters).
+'''
+
+[SPC-FN_GET_FN_CX_IDS]
+partof = 'SPC-fn-meta'
+text = '''
+```
+FN_GET_FN_CX_IDS DU {}
+    -> {fns: [{init_uid: u16, cx_id: u32}; 16], len: u8}
+```
+Get a stream (in batches of up to 16) of all `(init_uid, cx_id)` pairs running a
+device's `fn_id`. This tells you how many of a specific function are running
+concurrently.
+'''
+
+[SPC-FN_STREAM_CALLS]
+partof = 'SPC-fn-meta'
+text = '''
+```
+FN_STREAM_CALLS GI {fn_id: u16, invalid: bool, with_input: bool}
+    -> {cx_id: u32, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of all (future) calls made to this node's `fn_id` as soon as they
+are received.
+- If `invalid=false` then only send calls that result in `ACK`.
+- if `with_input=true` then also send the data received in the input.
+
+> the length `N` of `input` is `input_len`
+'''
+
+[SPC-FN_STREAM_ALL_CALLS]
+partof = 'SPC-fn-meta'
+text = '''
+```
+FN_STREAM_ALL_CALLS GI {
+    only_user: bool,
+    only_valid: bool,
+    only_indexed: bool,
+    only_undropable: bool,
+    with_input: bool,
+}
+-> {cx_id: u32, fn_id: u16, init_uid: u16, input_len: u16, input: [u8; N]}
+```
+Get a stream of ALL (future) calls made to this node as soon as they are
+received.
+- if `only_user=true` then only send non-builtin functions
+- if `only_valid=true` then only send calls that result in `ACK`.
+- if `only_indexed=true` then only send calls to indexed functions
+- if `only_undropable=true` then only send calls which have `dropable=false`
+- if `with_input=true` then also send the data received in the input.
+
+This function only accepts metadata of `cx_id=1` to prevent multiple streams to
+the same initiator.
+
+> the length `N` of `input` is `input_len`
+'''

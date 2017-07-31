@@ -28,6 +28,7 @@ The protocol specification is split up into several modules
 '''
 
 [SPC-0-definitions]
+done = "by definition"
 text = '''
 - `cluster` a set of nodes that share the same `cluster_uid` and can communicate
   through bridges. See [[SPC-cluster]]
@@ -58,4 +59,3 @@ text = '''
 - `value`: the value returned by a non-streaming function call.
 - `stream_value`: one of `count` values returned by a streaming functionc call.
 '''
-done = "by definition"

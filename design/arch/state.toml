@@ -65,53 +65,6 @@ impl Baz {
 ```
 '''
 
-[SPC-arch-state-init]
-partof = "SPC-art-state"
-text = '''
-# Initiator Structs
-Initiator is an enum value which goes inside [[SPC-arch-state]] and is used for the
-the `Context::state` when initiating an RPC on another node.
-
-The initiator state is simply structs which exist under module `initiator.rs` and
-have the signature `{cx: Context, ...}`
-
-Single Value Path: `ExecutorState::Single`
-- Ready {data: &mut Data} - the function is initialized and ready to be called
-
-- CalledWaiting: `FN_CALL` has been sent, waiting for response
-    response
-- KillWaiting: `KILL` has been sent, waiting for response
-
-- Acked: recieved ACK from `FN_CALL`
-- KillAcked: recieved ACK from `KILL`
-
-- Done: the function is done but value has not been receieved
-- ValueDone{data: &mut Data}: received a single value
-- ErrDone{err: ErrType, data: &mut Data}: received an ERR
-- Killed: Kill is complete
-
-Stream Values Path: `ExecutorState::Stream`
-- ReadyStream{data: &mut Data} - the stream function is initialized and ready to be called
-- CalledStreamWaiting: `FN_CALL` of type stream has been sent, waiting for first value
-- KillStreamWaiting: `KILL` has been sent to a stream, waiting for a response
-
-- AckedStream: recieved ACK from `FN_CALL`
-- KillAckedStream: recieved ACK from `KILL`
-
-- ValueStreamRunning{count: u16, data: &mut Data}: received a value from the
-  stream, function is still running 
-
-- StreamDone{count: 16}: the stream is done but it is possible not all values
-  have been received
-- ValueStreamDone{count: u16, data: &mut Data}: received a value from the
-  stream while it is done (not necessarily final value).
-- ErrStream{err: ErrType, count: u16, data: &mut Data}: received an ERR on an
-  index of stream
-- ErrStreamDone{err: ErrType, count: u16, data: &mut Data}: received an ERR
-  from a stream that is done (not necessarily final value).
-- KilledStream: received `KILLED`
-'''
-
 [SPC-arch-state-exec]
 text = '''
 # Executor Structs
@@ -158,4 +111,51 @@ Stream Value Functions
   and returned an error.
 - `ValueStreamDone{count: u16, data: &mut Data}`: stream function is done and
   returned data. 
+'''
+
+[SPC-arch-state-init]
+partof = "SPC-art-state"
+text = '''
+# Initiator Structs
+Initiator is an enum value which goes inside [[SPC-arch-state]] and is used for the
+the `Context::state` when initiating an RPC on another node.
+
+The initiator state is simply structs which exist under module `initiator.rs` and
+have the signature `{cx: Context, ...}`
+
+Single Value Path: `ExecutorState::Single`
+- Ready {data: &mut Data} - the function is initialized and ready to be called
+
+- CalledWaiting: `FN_CALL` has been sent, waiting for response
+    response
+- KillWaiting: `KILL` has been sent, waiting for response
+
+- Acked: recieved ACK from `FN_CALL`
+- KillAcked: recieved ACK from `KILL`
+
+- Done: the function is done but value has not been receieved
+- ValueDone{data: &mut Data}: received a single value
+- ErrDone{err: ErrType, data: &mut Data}: received an ERR
+- Killed: Kill is complete
+
+Stream Values Path: `ExecutorState::Stream`
+- ReadyStream{data: &mut Data} - the stream function is initialized and ready to be called
+- CalledStreamWaiting: `FN_CALL` of type stream has been sent, waiting for first value
+- KillStreamWaiting: `KILL` has been sent to a stream, waiting for a response
+
+- AckedStream: recieved ACK from `FN_CALL`
+- KillAckedStream: recieved ACK from `KILL`
+
+- ValueStreamRunning{count: u16, data: &mut Data}: received a value from the
+  stream, function is still running 
+
+- StreamDone{count: 16}: the stream is done but it is possible not all values
+  have been received
+- ValueStreamDone{count: u16, data: &mut Data}: received a value from the
+  stream while it is done (not necessarily final value).
+- ErrStream{err: ErrType, count: u16, data: &mut Data}: received an ERR on an
+  index of stream
+- ErrStreamDone{err: ErrType, count: u16, data: &mut Data}: received an ERR
+  from a stream that is done (not necessarily final value).
+- KilledStream: received `KILLED`
 '''

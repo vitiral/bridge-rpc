@@ -25,6 +25,22 @@ The message is defined in the following specs:
 - [[SPC-msg-status]]: the status type
 '''
 
+[SPC-msg-ack]
+text = '''
+## Ack Types
+Only requests are acknowledged. Response types can just be re-requested if they
+are dropped. Receiving an ACK is *not necessary* (as `FN_GET_INFO` can be
+called for dropped `ACK`) , but not receiving the ack within the network
+expected period gives a hint to the caller to re-request the data.
+
+Some requests (i.e. `GET_VALUE`) are requesting the return of a value only *if it
+already exists*. Therefore these do not return an ACK, they just return the
+value.
+
+- `ACK_FN_CALL`: acknowledge function call (call in progress)
+- `ACK_KILL`: acknowledge a kill command (kill not yet done)
+'''
+
 [SPC-msg-layout]
 text = '''
 Byte-by-Byte breakdown of a message "packet":
@@ -53,6 +69,27 @@ Dependent Next Bytes (in this order)
 - bit 4-7: msg_type
 '''
 
+[SPC-msg-status]
+text = '''
+## Status Type
+The `STATUS` type is returned after receiving `GET_STATUS`. It contains a payload
+of the following type:
+```
+{num_cached: u32, init_uid: u16, running: bool, cached: bool, err: bool, fn_err: bool}
+```
+- `num_cached` is the number of values cached by the `fn_id` at `cx_id`
+- `init_uid` is the initiator's uid  who started the function at this `cx_id`
+- `cached` is whether the value (at `count` if `stream=true`) is cached
+- `running` is whether `fn_id` at `cx_id` is still running
+- `err` is whether the value (at `count` if `stream=true`) is an error
+- `fn_err` is whether the whole function had an error (regardless of stream)
+
+`GET_STATUS` can also return the following `ERR`:
+- `ERR_UNEXPECTED_GET_STATUS`
+- `ERR_FN_ID_DNE`
+- `ERR_INVALID_STATUS_COUNT`
+'''
+
 [SPC-msg-type]
 text = '''
 ### Message Types (`msg_type`)
@@ -79,42 +116,4 @@ Request Types:
 Finish Types:
 - `E` `KILL`: kill running function or stop stream `fn_id` of `cx_id`
 - `F` `CLEAR`: clear cache of `fn_id` using `cx_id`
-'''
-
-
-[SPC-msg-ack]
-text = '''
-## Ack Types
-Only requests are acknowledged. Response types can just be re-requested if they
-are dropped. Receiving an ACK is *not necessary* (as `FN_GET_INFO` can be
-called for dropped `ACK`) , but not receiving the ack within the network
-expected period gives a hint to the caller to re-request the data.
-
-Some requests (i.e. `GET_VALUE`) are requesting the return of a value only *if it
-already exists*. Therefore these do not return an ACK, they just return the
-value.
-
-- `ACK_FN_CALL`: acknowledge function call (call in progress)
-- `ACK_KILL`: acknowledge a kill command (kill not yet done)
-'''
-
-[SPC-msg-status]
-text = '''
-## Status Type
-The `STATUS` type is returned after receiving `GET_STATUS`. It contains a payload
-of the following type:
-```
-{num_cached: u32, init_uid: u16, running: bool, cached: bool, err: bool, fn_err: bool}
-```
-- `num_cached` is the number of values cached by the `fn_id` at `cx_id`
-- `init_uid` is the initiator's uid  who started the function at this `cx_id`
-- `cached` is whether the value (at `count` if `stream=true`) is cached
-- `running` is whether `fn_id` at `cx_id` is still running
-- `err` is whether the value (at `count` if `stream=true`) is an error
-- `fn_err` is whether the whole function had an error (regardless of stream)
-
-`GET_STATUS` can also return the following `ERR`:
-- `ERR_UNEXPECTED_GET_STATUS`
-- `ERR_FN_ID_DNE`
-- `ERR_INVALID_STATUS_COUNT`
 '''

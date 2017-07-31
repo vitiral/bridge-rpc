@@ -29,6 +29,14 @@ define specific network and device implementations.
 - [[SPC-arch-constants]]: language agnostic definition of constants
 '''
 
+[SPC-arch-bridge]
+text = '''
+There shall be a `Bridge` Trait. The user must implement the following methods:
+- `node()`: returns a static reference to the node struct. See [[SPC-arch-node]]
+
+The `Bridge` definition simply declares that the node is a bridge
+'''
+
 [SPC-arch-constants]
 text = '''
 Constants shall be defined in the yaml format so that scripts can be writen
@@ -132,12 +140,4 @@ There shall be a `Node` trait which implements the following values:
 - `cluster_uid()`: return the uid of the cluster
 - `node_uid()`: return the uid of the node
 - `user_fns()`: return a map of user `fn_id`s to procedures. See [[SPC-arch-fn]]
-'''
-
-[SPC-arch-bridge]
-text = '''
-There shall be a `Bridge` Trait. The user must implement the following methods:
-- `node()`: returns a static reference to the node struct. See [[SPC-arch-node]]
-
-The `Bridge` definition simply declares that the node is a bridge
 '''

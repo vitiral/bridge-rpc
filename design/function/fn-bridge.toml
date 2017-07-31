@@ -1,0 +1,202 @@
+[SPC-fn-bridge]
+text = '''
+## Bridge Node Functions
+These functions are how communication happens from node -> bridge and
+bridge -> node. These are used in node registration and discovery.
+
+> Many of these can return bridge related errors documented in "Bridge Node Errors".
+> These errors are represented by `BERR` below.
+
+### Broadcast Functions
+There are only two functions which have to be implemented in a network specific
+manner. These are used for nodes and bridges to make sure other nodes know they
+exist.
+
+- [[SPC-FN_BROADCAST_NODE]]: broadcast that a node exists
+- [[SPC-FN_BROADCAST_BRIDGE]]: broadcast that a bridge exists
+
+### Bridge Operation
+These functions are how bridges work once the discovery phase is
+done.
+
+- [[SPC-FN_STREAM_REGISTERED_NODES]]: continuously stream all nodes
+    registered to this bridge.
+- [[SPC-FN_STREAM_REGISTERED_BRIDGES]]: continuously stream all
+    bridges registered to this bridge, with `path` discovery.
+- [[SPC-FN_REGISTER_SELF]]: register self to a bridge, used during discovery.
+- [[SPC-FN_GET_BRIDGE_PATH]]: forces bridges to validate a bridge's path.
+- [[SPC-FN_NODE_EXISTS]]: return whether the bridge knows about a node.
+- [[SPC-FN_REGISTER_BRIDGE]]: called after a node sends
+  [[SPC-FN_BROADCAST_NODE]]
+
+### Fault and Recovery
+- [[SPC-FN_UNREGISTER_BRIDGE]]: called after a node sends.
+- [[SPC-FN_FORCE_DISCOVERY]]: force bridge to re-enter discovery phase.
+- [[SPC-FN_STOP_BRIDGE]]: stop a bridge that is misbehaving.
+- [[SPC-FN_START_BRIDGE]]: start a bridge that has been stopped.
+
+### Read Bridges
+These functions are mostly useful for diagnostics and debuggin
+- [[SPC-FN_GET_BRIDGES]]: get some bridges cached on a node
+- [[SPC-FN_STREAM_BRIDGES]]: get all bridges cached on a node
+'''
+
+[SPC-FN_BROADCAST_NODE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_BROADCAST_NODE DV {cluster_uid: u32} {} ![]
+```
+Broadcast that this node exists on a certain cluster within a local network.
+Bridges on that cluster in the local network cluster will respond with
+`FN_REGISTER_BRIDGE`. `exec_uid` is always set to `0` for this function.
+'''
+
+
+[SPC-FN_BROADCAST_BRIDGE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_BROADCAST_BRIDGE DV {cluster_uid: u32} {} ![]]
+```
+Broadcast that this bridge exists on a certain cluster. Nodes and bridges on
+that cluster will respond with `FN_REGISTER_NODE`. `exec_uid` is always set to
+`0` for this function.
+'''
+
+[SPC-FN_GET_BRIDGES]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_GET_BRIDGES DV {} {bridge_uids: [u16; 8], len: u8, total: u16} ![]
+```
+Return up to the first eight bridges currently registered on the node (in
+ordered priority) as well as the total number of bridges. Most nodes will not
+have more than 8 bridges.
+'''
+
+[SPC-FN_STREAM_BRIDGES]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_STREAM_BRIDGES GS {} {bridge_uid: u16} ![]
+```
+Return a stream of up to `count` bridges on the node. If `count` is 0 or
+`INFINITE` then stream all known bridges.
+'''
+
+[SPC-FN_STREAM_REGISTERED_NODES]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_STREAM_REGISTERED_NODES GI {}
+-> {node_uid: u16, local_bridges: [u16; 8]}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `node_uid`s whenever they
+become available or updated (past and future) future, or whenever a
+`local_bridge` is added. This is the primary command that allows bridges to stay
+up to date on what other bridges have access to.
+
+This ALWAYS uses `cx_id=1` to make sure that there are not multiple running
+streams (but if the bridge went offline the stream may need to be restarted).
+
+Each node has a `node_uid` and up to 8 `network_uid`s.
+'''
+
+[SPC-FN_STREAM_REGISTERED_BRIDGES]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_STREAM_REGISTERED_BRIDGES GI {}
+-> {bridge_uid: u16, path: [u16; 32]}
+![BERR]`
+```
+Command for a bridge to stream all it's registered `bridge_uid`s whenever they
+become available or updated (past and future).
+
+When this function gets passed-through to other bridges, its own `node_uid` is
+appened onto `path`. If the other bridge exists on the local network it will
+ignore that `uid`, otherwise it will keep it and keep passing it along.
+'''
+
+[SPC-FN_GET_BRIDGE_PATH]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_GET_BRIDGE_PATH GV {} -> {path: [u16: 32]} ![BERR]
+```
+similar to [[SPC-FN_STREAM_REISTERED_BRIDGES]] except returns a single bridge's
+path (and validates that it works -- rebuilding if necessary).
+'''
+
+[SPC-FN_NODE_EXISTS]
+text = '''
+```
+FN_NODE_EXISTS DV {node_uid: u16} -> {exists: bool} ![BERR]
+```
+Return true if the bridge has the `node_uid` stored (and therefore knows how to
+reach it).
+'''
+
+[SPC-FN_REGISTER_SELF]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]
+```
+Register self with the bridge. Used during all bridge's discovery stage.
+`is_bridge` specifies whether the node is also a bridge. This method will NEVER
+be bridged. If that is attempted, `ERR_CANNOT_BRIDGE` is returned.
+'''
+
+
+[SPC-FN_REGISTER_BRIDGE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_REGISTER_BRIDGE GV {} -> {}
+```
+Register this bridge with the node. Used by a bridge if the node sends
+[[SPC-FN_BROADCAST_NODE]]
+'''
+
+[SPC-FN_UNREGISTER_BRIDGE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_UNREGISTER_BRIDGE DV {bridge_uid: u16} -> {}
+```
+Tell a node to unregister a bridge. Used if a bridge has stopped/failed.
+'''
+
+[SPC-FN_FORCE_DISCOVERY]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_FORCE_DISCOVERY DV {} -> {} ![BERR]
+```
+Force the bridge to re-enter the discovery phase (will momentarily bring it
+down).
+'''
+
+[SPC-FN_START_BRIDGE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+FN_START_BRIDGE DV {} -> {} ![BERR]
+```
+Tell a bridge node that has been stopped to be a bridge again. NOP if node is
+already a bridge.
+'''
+
+[SPC-FN_STOP_BRIDGE]
+partof = 'SPC-fn-bridge'
+text = '''
+```
+DV {} -> {} ![BERR]
+```
+force a bridge to stop acting as a bridge. Can be used if the bridge is
+misbehaving or there are too many bridges. The bridge will un-register with
+nodes before shutting down.
+'''

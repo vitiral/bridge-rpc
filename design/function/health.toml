@@ -1,0 +1,95 @@
+[SPC-fn-info]
+text = '''
+# Health Check Functions
+These functions are for health checks of nodes and networks.
+- [[SPC-FN_PING]]: the ping function
+- [[SPC-FN_STREAM_COCK]]: heartbeat function with time information.
+- [[SPC-FN_GET_NODE_INFO]]: get bridge-rpc related info.
+- [[SPC-FN_GET_ADDRS]]: get all the addresses of a node.
+- [[SPC-FN_GET_HW_INFO]]: get hardware info about the node.
+- [[SPC-FN_GET_RPC_INFO]]: return statistics about the running rpc
+    processes.
+'''
+
+[SPC-FN_PING]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_PING DV {} -> ack ![]`
+```
+Ping the node to get an empty value
+'''
+
+[SPC-FN_STREAM_CLOCK]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_STREAM_CLOCK DS {period_ms: int} {clock_us: u64} ![]
+```
+Return the current microsecond value on the device's clock every `period_ms`.
+This can be used as a node's heartbeat. This ALWAYS uses `cx_id=1` to avoid
+duplicate streams.
+'''
+
+[SPC-FN_GET_NODE_INFO]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_GET_NODE_INFO DV {} -> {
+    bridge: bool,           # true if node is a bridge
+    num_networks: u16,      # number of networks this node has access to
+    buffer_size: u32,       # total buffer size (input+output)
+    cluster_uid: u32,       # the cluster this node is a part of
+    uptime: u64,            # milliseconds since power-on
+} ![]
+```
+Return info related to this library about the node.
+'''
+
+[SPC-FN_GET_ADDRS]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_GET_ADDRS GU {} -> {addr_type: u16, addr: [u8; 32]} ![]
+```
+Stream the addresses of this node on it's networks.
+
+This function only accepts `cx_id=0` and will never buffer past values (it only
+returns the addresses it currently has).
+'''
+
+[SPC-FN_GET_HW_INFO]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_GET_HW_INFO DV {} -> {
+    sleep: bool,        # true if device can sleep
+    ip_net: bool,       # true if device uses tcp/ip network
+    can_net: bool,      # true if device uses CAN network
+    uart_net: bool,     # true if device uses UART network
+    zigbee_net: bool,   # true if device uses ZigBee network
+    other_net: bool,    # true if device has other network
+
+    cpu_name: [u8; 12],
+    num_cores: u32,
+    frequency_mhz: u32,
+    ram_mb: u32,
+    num_devices: u32,
+  } ![]
+```
+Return information about the hardware of the device
+'''
+
+[SPC-FN_GET_RPC_INFO]
+partof = 'SPC-fn-info'
+text = '''
+```
+FN_GET_RPC_INFO DV {} -> {
+    rpcs_running: u32,  # how many rpcs are being run on this node
+    rpcs_cached: u32,   # number of completed cached rpcs
+    bytes_cached: u64,  # number of completed cached bytes
+    rpcs_run: u64,      # total count of number of rpcs successfully started
+} ![]
+```
+Return information about running processes
+'''
