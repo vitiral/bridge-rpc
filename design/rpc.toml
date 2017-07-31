@@ -7,6 +7,8 @@ including:
 - [[SPC-rpc-value]]: returning the value/error of the call
 - [[SPC-rpc-dropped]]: getting the status/value of the call if it is dropped
 - [[SPC-rpc-finish]]: clearing the cached value/s
+- [[SPC-rpc-indexed]]: operation of indexed functions which complete the
+  robustness story.
 '''
 
 [SPC-rpc-dropped]
@@ -14,17 +16,18 @@ text = '''
 The Bridge Protocol has a wide range of flexibility for data robustness ranging
 from values persisting indefinitely to them being cleared immediately.
 
-If the function type is `dropable=true` then the value, error and context is
+If the [[SPC-msg-type]] is `dropable=true` then the value, error and context is
 dropped *immediately* after sending all values and errors. Further calls to
-either `GET_STATUS` or `GET_VALUE` will result in [[ERR_UNEXPECTED_]].
+either `GET_STATUS` or `GET_VALUE` will result in one of [[ERR_UNEXPECTED_]].
 
 If `dropable=false` then the timeout/event that causes the value, error and
-context to be dropped are implementation specific. While the value is cached,
-it can be retrieved through:
+context to be dropped are implementation specific. The value will be cached and
+is retriveable until the `CLEAR` message is sent. The data can be re-sent using:
 - `GET_STATUS` returns the `STATUS` of the `fn_id` at `cx_id`, including whether
   it is still running, whether the value at `count` (if `stream=true`) is cached
   and how many total values are cached from that function.
-- `GET_VALUE` re-sends the `VALUE` of the completed function at `cx_id`.
+- `GET_VALUE` re-sends the `VALUE` of the completed function at `cx_id` or
+  [[SPC-ERR_FN_]`VALUE_NOT_READY`.
 - when `stream=true` the behavior is slightly modified. See [[SPC-stream]]
 
 # Robustness
@@ -52,9 +55,10 @@ sent to it.
 If an initiator calls an undropable function and receives no `ACK` or `VALUE`
 within an application specific time frame it can:
 - simply call it again. If the function is running or has finished it will
-  receive `ERR_FN_RUNNING` or `ERR_FN_RAN`.
+  receive [[SPC-ERR_FN_]]`RUNNING` or [[SPC-ERR_FN_]]`RAN`.
 - send `GET_STATUS` to see if the function has started. If it hasn't it will
-  receive `ERR_UNEXPECTED_GET_STATUS` and will have to re-send the function.
+  receive [[SPC-ERR_UNEXPECTED_]]`GET_STATUS` and will have to re-send the
+  function.
 - send `GET_VALUE` to try and get the function's data. Note that if `VALUE` is
   large this may saturate the network as the `VALUE` may already be in-flight.
 
@@ -62,9 +66,9 @@ If an executor returns a `VALUE` on an undropable function but does not receive
 the `CLEAR` within an application defined time it can:
 - simply send the value again, especially if the value is small.
 - send `DONE` which will result in `GET_VALUE` being sent to re-request the
-  value 
+  value.
 - if the `CLEAR` message had previously been sent (but dropped), these messages
-  will result in `ERR_UNEXPECTED_DONE` since the context will have already been
+  will result in [[SPC-ERR_UNEXPECTED_]]`DONE` since the context will have already been
   cleared on the initiator. This error will be interpreted as a `CLEAR`.
 '''
 
@@ -74,27 +78,25 @@ When an initiator gets a value from the executor and `dropable=false` it should
 notify the executor that the data can be cleared.
 - `CLEAR` shall be sent when a `VALUE`, `ERR` or `DONE` is received and
   `dropable=false`
-    - if the function is still running it returns [[ERR_FN_]]INVALID_CLEAR
-      which is a critical error if CLEAR was sent only once.
+    - if the function is still running it returns [[ERR_FN_]]`INVALID_CLEAR`
+      which is a critical error for indexed functions.
     - if the context has been cleared, the executor will return
       `ERR_UNEXPECTED_CLEAR` which should be ignored.
-    - if `stream=false` this signals the function as being done and ALL data is
-      cleared (even for streaming functions).
     - if `stream=true` this signals data at `count` being done. The function
-      will continue (until done and all stream data is cleared) but that `count`
-      of the stream will be cleared.
-- A `CLEAR` with `stream=false` will result in all data being cleared, even if
-  the function is a stream type.
+      will continue (until done and all stream data is cleared) but that
+      `count` of the stream will be cleared.
+    - A `CLEAR` with `stream=false` will result in all data being cleared, even
+      if the function is a stream type.
 
 When an initiator (or monitor) wants to kill a running process it uses the
 `KILL` message. After doing so:
-- the executor must return `KILLED` (or a kill-related err).
-- If the function was already killed, `KILL` will return `ERR_KILL_DONE`,
-  which should be interpreted as `KILLED`
-- If the context has been cleared, `KILL` will return `ERR_UNEXPECTED_KILL`
-  which should be interpeted as `KILLED`
+- the executor must return `KILLED` (or an [[SPC-ERR_KILL_]]).
+- If the function was already killed, `KILL` will return
+  [[SPC-ERR_KILL_]]`DONE`, which should be interpreted as `KILLED`
+- If the context has been cleared, `KILL` will return
+  [[SPC-ERR_UNEXPECTED_]]`KILL` which should be interpeted as `KILLED`
 - if `KILL,dropable=true` then the function will be killed AND data will be
-  cleared.
+  cleared, even for non-dropable functions.
 - `stream` must always be false for `KILL` messages.
 '''
 
@@ -113,30 +115,34 @@ call twice such as "drive forward 10 meters" or "delete a specific file" or
 "overwrite this value in the database". 
 
 Indexed functions work by:
-- only executes `FN_CALL` that have `cx_id=index`
-- index starts at 0 at startup. The first `FN_CALL` must have
-  `cx_id=0,dropable=false` (with no input), and receive `CLEAR`, to "unlock"
-  the index function. This prevents the device from being shutdown without
-  anyone knowing. (see Note 1)
-- every time the index is successfully called (whenever it returns `ACK`),
+- 0nly executes `FN_CALL` that have `cx_id=index`
+- The index starts at 0 at startup. The first `FN_CALL` must have
+  `cx_id=0,dropable=false` (with no input), and receive `CLEAR` from the same
+  `init_uid` to "unlock" the index function. This prevents the device from
+  being shutdown without anyone knowing. (see Note 1)
+  - If multiple functions send `cx_id=0,dropable=false` they will get
+    [[SPC-ERR_FN_]]`INDEX_LOCKED`.
+  - In case of problems, `KILL,cx_id=0` will "unlock" the function again
+    (if it is still locked).
+- Every time the index is successfully called (whenever it returns `ACK`),
   it incremenets the `index`.
-- therefore it must be called in sequential order and no calls can be
+- Therefore it must be called in sequential order and no calls can be
   accidental.
 
 Indexed functions make it impossible to *acidentally* call a function twice (or
 more). If `cx_id` does not equal the node's internal index it will return
-[[SPC-ERR_FN_]]INVALID_INDEX. This can mean it can mean several things depending on
+[[SPC-ERR_FN_]]`INVALID_INDEX`. This can mean several things depending on
 `init_uid` of `GET_STATUS`:
-- if `init_uid` is your `node_id`, then you successfully called the function on a
-  previous call (yay!).
-- if `init_uid` is NOT your `node_uid`, then a *different node* called the function.
+- If `init_uid` is your `node_id`, then you successfully called the function on a
+  previous call.
+- If `init_uid` is NOT your `node_uid`, then a *different node* called the function.
   Your application should probably try to do some communication to figure out
   what's going on and what to do next.
-- if the context was cleared (so `init_uid` of that `cx_id` is unknown from
+- If the context was cleared (so `init_uid` of that `cx_id` is unknown from
   `GET_STATUS`), the information could still have been obtained if values from
-  `FN_STREAM_CALLS` or `FN_STREAM_ALL_CALLS` were stored in an application
-  specific manner for query (only the functions, not the database, are
-  supported by this library).
+  [[SPC-FN_STREAM_CALLS]] or [[SPC-FN_STREAM_ALL_CALLS]] were stored in an
+  application specific manner for query (only the functions, not the database,
+  are supported by this library).
 
 > Note 1: if a device receives the unlock command but the return value is not
 > cleared within an application specific amount of time, it will clear the
@@ -160,34 +166,34 @@ node received a `CALL_FN` message type with valid metadata.
 Immediately after receiving a valid function call, and before actually
 running the function, the node must:
 - if it is an indexed function, increment its `index`.
-- put an `ACK` message on the buffer.
-- handle any `FN_STREAM_CALLS` and `FN_STREAM_ALL_CALLS` requests by putting
-  the call data on the buffer.
+- put an `ACK`([[SPC-msg-ack]]) message on the buffer.
+- handle any [[SPC-FN_STREAM_CALLS]] and [[SPC-FN_STREAM_ALL_CALLS]] requests
+  by putting the call data on the buffer.
 '''
 
 [SPC-rpc-value]
 text = '''
 Once the [[SPC-rpc-init]] is complete on the executor, the function shall be run
 on the node. When the function has finished it shall send either a `VALUE` or an
-`ERR` message to the initiator.
+`ERR` message to the initiator ([[SPC-msg-type]]).
 
 If the data is lost, it may be able to be recovered as defined in
 [[SPC-rpc-dropped]]
 
-The returned `ERR` values are functions specific.
+> The returned `ERR` values are functions specific.
 
 ## Stream RPC
-If the `stream` bit is set (and `count` has some value), the RPC is a
-"stream" type and will output `count` values. The values will also have
-`stream=1` and have their `count` set to what index of the stream they are.
+If the `stream` bit of [[SPC-msg-type]] is set, the RPC is a "stream" type.
+The value of `count` in the packet will be set to what index of the stream the
+value is.
 
-The `count` in the RPC controls the number of values to be received:
-- If `count=0` then the number of values will be determined by the function.
+When calling a function, the `count` in the RPC controls the number of values
+to be received:
+- If `count=0` then the function "default" will be used.
 - If `count=MAX_U32` then the stream will be infinite. Some functions, like
   `heartbeat` are flexible and can output any number of `count`. Almost any
   mixture of configurations is possible.
-- `count>MAX_U32/2` returns `ERR_INVALID_COUNT` since the highest value of
-  `count`
+- `count>MAX_U32/2` returns [[ERR_INVALID_]]`COUNT` 
 
 When returning stream values, the `count` is equal to the index of the value
 in the stream. If `dropable=false` a `CLEAR` message must be sent with the same

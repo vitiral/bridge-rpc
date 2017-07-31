@@ -61,17 +61,14 @@ Dependent Next Bytes (in this order)
 - If `stream=true`: u16 `count` of stream
     - `count && xEFFF`: the u16 value of count.
     - `count && x8000`: true if this message is the last of the stream
-- If `msg_type=ACK`, u8 ack type
-- If `msg_type=ERR`: u16 err type
-- If `msg_type`=`ERR`, `VALUE`, `CALL_FN` or `STATUS`: the payload
+- If `msg_action=ACK`, u8 ack type
+- If `msg_action=ERR`: u16 err type
+- If `msg_action`=`ERR`, `VALUE`, `CALL_FN` or `STATUS`: the payload
 - If `validation=true`: 5 byte CRC of the WHOLE message
 
-## Message Metadata
-- bit 0: `validation` boolean
-- bit 1: `dropable` boolean
-- bit 2: `stream` boolean
-- bit 3: `--- reserved ---`
-- bit 4-7: msg_type
+'''
+
+[SPC-msg-type]
 '''
 
 [SPC-msg-status]
@@ -97,13 +94,20 @@ The [[SPC-msg-type]] = `STATUS` is returned after receiving [[SPC-msg-type]] =
 
 [SPC-msg-type]
 text = '''
-### Message Types (`msg_type`)
+## Message Type
+- bit 0: `validation` boolean
+- bit 1: `dropable` boolean
+- bit 2: `stream` boolean
+- bit 3: `--- reserved ---`
+- bit 4-7: msg_action
+
+## Message Action
 Response Types:
 - `0` `ACK`: acknowledge call `fn_id` of `cx_id` (+type). See [[SPC-msg-ack]]
 - `1` `DONE`: return that the function is done
 - `2` `KILLED`: return `kill` completed on `fn_id` of `cx_id`
 - `3` `VALUE`: return value/item from call `fn_id,cx_id,[count]` (+payload)
-- `4` `ERR`: return error from a call `fn_id,cx_id` (+type&payload)
+- `4` `ERR`: return error from a call `fn_id,cx_id` (+type&payload) ([[SPC-err]])
 - `5` `STATUS`: returned status, see [[SPC-msg-status]]
     
 

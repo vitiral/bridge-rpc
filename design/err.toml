@@ -81,6 +81,10 @@ text = '''
   doesn't exist.
 - `ERR_FN_INVALID_CLEAR`: a `CLEAR` was sent while the function was still
   running. 
+- `ERR_FN_VALUE_NOT_READY`: a `GET_VALUE` was sent but the function is still
+  running.
+- `ERR_FN_INDEX_LOCKED`: an indexed function is already being unlocked.
+  See [[SPC-rpc-indexed]].
 '''
 
 [SPC-ERR_KILL_]
