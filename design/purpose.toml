@@ -35,11 +35,11 @@ text = '''
 - `node`: a device with a `node_uid`, `cluster_uid` and registered `fn_id`s
   that can communicate on one or more networks. See [[SPC-node]]
 - `bridge`: a node that other nodes can register themselves on that can talk on
-  at least one network and knows the `network_uid` for all networks.
-  Can act as a "bridge" between networks. See [[SPC-bridge]]
+  at least one network. Can act as a "bridge" between networks. See
+  [[SPC-bridge]]
 - `function`: a declared method with a `fn_id` that begins the RPC process on
   a node.
-- `RPC`: a single remote procedural call, ack, return value, kill clear, etc.
+- `RPC`: a single remote procedural call, ack, return value, kill, clear, etc.
   Can be thought of as all communication and execution that happens for a
   unique `(init_uid,exec_uid,fn_id,cx_id)` tuple. See [[SPC-rpc]]
 - `cluster_uid`: cluster unique id which represents a collection of nodes and

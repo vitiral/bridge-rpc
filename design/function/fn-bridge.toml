@@ -147,7 +147,7 @@ FN_REGISTER_SELF DV {is_bridge: bool} -> {} ![BERR]
 ```
 Register self with the bridge. Used during all bridge's discovery stage.
 `is_bridge` specifies whether the node is also a bridge. This method will NEVER
-be bridged. If that is attempted, `ERR_CANNOT_BRIDGE` is returned.
+be bridged. If that is attempted, [[SPC-ERR_BRIDGE]]_INVALID is returned.
 '''
 
 

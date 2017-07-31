@@ -3,16 +3,17 @@ partof = "SPC-0"
 text = '''
 These are the error types.
 
-# TODO: this is a dumping ground. Clean it up.
-
 ## Builtin Err Types
 ### Err Byte Availability Breakdown:
 - `x0000` - `x00FF`: reserved for protocol specific errors
 - `x0100` - `x04FF`: reserved for builtin function errors
 - `x0400` - `x0FFF`: reserved for registered library errors
 - `x1000` - `xFFFF`: open for user defined errors
+'''
 
-### Protocol Errors:
+[SPC-ERR_UNEXPECTED]
+partof = 'SPC-err'
+text = '''
 #### Unexpected Message Errors:
 Since messages can be sent twice (by design), it is possible that "unexpected"
 messages were actually just an extra one sent that arrived after the `cx_id` was
@@ -33,22 +34,35 @@ Request:
 
 Finish:
 - `ERR_UNEXPECTED_CLEAR`: unexpected/extra `CLEAR` received
+'''
 
+[SPC-ERR_CORRUPT]
+partof = 'SPC-err'
+text = '''
 #### Validation Errors
-- `ERR_METADATA_CORRUPT`: the message-metadata != ~inverse-message-metadata
-- `ERR_MESSAGE_CORRUPT`: `validation=1` and the message failed the CRC check
+- `ERR_CORRUPT_METADATA`: the message-metadata != ~inverse-message-metadata
+- `ERR_CORRUPT_MESSAGE`: `validation=1` and the message failed the CRC check
+'''
 
+[SPC-ERR_BRIDGE]
+partof = 'SPC-err'
+text = '''
 #### Bridge Node Protocol Errors
-- `ERR_CANNOT_BRIDGE`: a function that cannot be bridged was attempted to be
+- `ERR_BRIDGE_INVALID`: a function that cannot be bridged was attempted to be
   bridged.
-- `ERR_UNREGISTERED_INIT`: returned if an `init_id` in a message is not
+- `ERR_BRIDGE_UNREG_INIT`: returned if an `init_id` in a message is not
   registered on a bridge. This represents a critical error.
-- `ERR_UNREGISTERED_EXEC`: returned if an `exec_id` in a message is not
+- `ERR_BRIDGE_UNREG_EXEC`: returned if an `exec_id` in a message is not
   registered on a bridge. Can happen if a bridge gets rebooted and
   hasn't gone through discovery yet.
+- `ERR_BRIDGE_TYPE`: bridge function called on a node that is not a bridge.
+'''
 
+[SPC-ERR_FN]
+partof = 'SPC-err'
+text = '''
 #### Function Errors
-- `ERR_INVALID_INDEX`: indexed function called with invalid index
+- `ERR_FN_INVALID_INDEX`: indexed function called with invalid index
   (data=current index)
 - `ERR_FN_RUNNING`: `FN_CALL` was sent with the `cx_id` of a running function.
   (data=`init_uid` of the initiator)
@@ -63,14 +77,24 @@ Finish:
   functions will never be able to return cached data.
 - `ERR_FN_ID_DNE`: returned from functions like `FN_GET_INFO` if the `fn_id`
   doesn't exist.
-- `ERR_CX_ID_DNE`: returned from functions like `FN_GET_INFO` if the `cx_id`
+- `ERR_FN_CX_ID_DNE`: returned from functions like `FN_GET_INFO` if the `cx_id`
   doesn't exist.
+- `ERR_FN_INVALID_CLEAR`: a `CLEAR` was sent while the function was still
+  running. 
+'''
 
+[SPC-ERR_KILL]
+partof = 'SPC-err'
+text = '''
 #### Kill Errors:
 - `ERR_KILL_DONE`: kill failed, `fn_id` at `cx_id` is already done
 - `ERR_KILL_BLOCKED`: kill failed, `fn_id` at `cx_id` is currently blocked
-- `ERR_UNKILLABLE`: kill failed, `fn_id` at `cx_id` is not killable
+- `ERR_KILL_INVALID`: kill failed, `fn_id` at `cx_id` is not killable
+'''
 
+[SPC-ERR_INVALID]
+partof = 'SPC-err'
+text = '''
 #### Invalid Data Errors:
 - `ERR_INVALID_VALUE`: invalid return value
 - `ERR_INVALID_ERR_CODE`: invalid error code
@@ -78,40 +102,55 @@ Finish:
 - `ERR_INVALID_INPUT`: invalid fn input data
 - `ERR_INVALID_COUNT`: invalid stream count
 - `ERR_INVALID_STATUS_COUNT`: invalid count in `GET_STATUS` message.
+'''
 
+[SPC-ERR_NET]
+partof = 'SPC-err'
+text = '''
 #### Network Errors
 These are network errors and signal to receivers that a network
 may be down or that that the io workload may need to be
 throttled. Bridges *can* return these.
-- `ERR_NODE_UNREACHABLE`: cannot reach a node/bridge (data=`(bridge_id,node_uid)`).
+- `ERR_NET_NODE_UNREACHABLE`: cannot reach a node/bridge (data=`(bridge_id,node_uid)`).
 - `ERR_NETWORK_FLOODED`: returned if network is up but too flooded for transfer.
+'''
 
+[SPC-ERR_MEM]
+partof = 'SPC-err'
+text = '''
 #### Memory Errors: `1110 XXXX`
 Device memory errors. User programs can return these as well.
-- `ERR_STACK_OVERFLOW`: device ran out of stack memory
-- `ERR_HEAP_FRAG`: device heap is too fragmented for msg
-- `ERR_HEAP_FULL`: device heap is too full for msg
+- `ERR_MEM_STACK_OVERFLOW`: device ran out of stack memory
+- `ERR_MEM_HEAP_FRAG`: device heap is too fragmented for msg
+- `ERR_MEM_HEAP_FULL`: device heap is too full for msg
+'''
 
-#### Library Errors: `1111 XXXX`
-- `ERR_LIB_BUFFER_FULL`: the library buffer is full.
-- `ERR_LIB_ERR`: error with this library's implementation
+[SPC-ERR_RPC]
+partof = 'SPC-err'
+text = '''
+## RPC Errors:
+Internal errors about the bridge-rpc library limits.
 
-#### Protocol Log Errors
+- `ERR_RPC_BUFFER_FULL`: the rpc buffer is full.
+- `ERR_RPC_INTERNAL`: error with this library's implementation. Should
+  never be hit
+'''
+
+[SPC-ERR_LOG]
+partof = 'SPC-err'
+text = '''
+## Log Errors
 These errors will never actually be returned since they don't get sent
 anywhere but a logging handler. However they are defined for the purpose
 of logging/monitoring.
 
 - `ERR_LOG_INVALID_VALUE_COUNT`: a value contained an invalid count (critical)
+'''
 
-### Builtin Function Errors
-These are errors that are returned by builtin functions, but users
-can also use them if they make sense for their own functions.
+[SPC-ERR_USER]
+partof = 'SPC-err'
+text = '''
+## These can be used by a user if they want to
 
-#### Misc
 - `ERR_INTERNAL_ERR`: unknown internal error
-- `ERR_INVALID_CLEAR`: a `CLEAR` was sent while the function was still running.
-
-#### Bridge Errors
-- `ERR_NODE_NOT_BRIDGE`: returned if bridge functions are called on a node
-  that is not a bridge.
 '''

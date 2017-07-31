@@ -74,8 +74,8 @@ When an initiator gets a value from the executor and `dropable=false` it should
 notify the executor that the data can be cleared.
 - `CLEAR` shall be sent when a `VALUE`, `ERR` or `DONE` is received and
   `dropable=false`
-    - if the function is still running it returns `ERR_INVALID_CLEAR` which is a
-      critical error if CLEAR was sent only once.
+    - if the function is still running it returns [[ERR_FN]]_INVALID_CLEAR
+      which is a critical error if CLEAR was sent only once.
     - if the context has been cleared, the executor will return
       `ERR_UNEXPECTED_CLEAR` which should be ignored.
     - if `stream=false` this signals the function as being done and ALL data is
@@ -125,7 +125,7 @@ Indexed functions work by:
 
 Indexed functions make it impossible to *acidentally* call a function twice (or
 more). If `cx_id` does not equal the node's internal index it will return
-`ERR_INVALID_INDEX`. This can mean it can mean several things depending on
+[[SPC-ERR_FN]]_INVALID_INDEX. This can mean it can mean several things depending on
 `init_uid` of `GET_STATUS`:
 - if `init_uid` is your `node_id`, then you successfully called the function on a
   previous call (yay!).
