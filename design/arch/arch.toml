@@ -19,7 +19,7 @@ The software implementation shall be split up into the following layers
     network protocol: implementation for specific network protocols
 
 --------------------------------------------------------------------------------
-    
+
     device definition: implementation for a specific board type, etc
 ```
 
@@ -45,7 +45,7 @@ to create constant files (with documentation) for any langauge.
 File settings look like:
 
 ```
-- "FILE_SETTINGS":
+- FILE_SETTINGS:
     - default_type: "CONST_RUST_TYPE"  # [&str, u8, u16, u32, [u16; 8], etc]
 ```
 
@@ -95,9 +95,12 @@ and state relevant to function execution.
 ```
 #[repr(packed)]
 struct Context {
+    /// context id
     cx_id: u32,
+    /// function id being called
     fn_id: u16,
-    other_uid: u16,  # the other node's uid
+    /// the initiator's uid
+    init_uid: u16,
 }
 ```
 '''
@@ -106,7 +109,7 @@ struct Context {
 text = '''
 Each function shall be defined with a struct:
 ```
-struct SingleRpcFn {
+struct RpcFn {
     /// context for this function RPC
     context: *mut RpcContext,
 
@@ -127,7 +130,7 @@ struct SingleRpcFn {
 }
 ```
 
-When a `fn_id` is called, the scheduler finds the correct 
+When a `fn_id` is called, the scheduler finds the correct
 function from Node::user_fns()` clones the `RpcFn` it finds
 there and assigns the context to it.
 

@@ -127,7 +127,6 @@ Single Value Path: `ExecutorState::Single`
 - Ready {data: &mut Data} - the function is initialized and ready to be called
 
 - CalledWaiting: `FN_CALL` has been sent, waiting for response
-    response
 - KillWaiting: `KILL` has been sent, waiting for response
 
 - Acked: recieved ACK from `FN_CALL`
@@ -143,8 +142,8 @@ Stream Values Path: `ExecutorState::Stream`
 - CalledStreamWaiting: `FN_CALL` of type stream has been sent, waiting for first value
 - KillStreamWaiting: `KILL` has been sent to a stream, waiting for a response
 
-- AckedStream: recieved ACK from `FN_CALL`
-- KillAckedStream: recieved ACK from `KILL`
+- AckedStream: recieved `ACK` from `FN_CALL`
+- KillAckedStream: recieved `ACK` from `KILL`
 
 - ValueStreamRunning{count: u16, data: &mut Data}: received a value from the
   stream, function is still running 
